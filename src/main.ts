@@ -33,6 +33,7 @@ import { I18n } from '@core/i18n/engine';
 import { UndoManager } from '@core/history/undo-redo';
 import { ServiceWorkerManager } from '@core/service-worker';
 import { AppShell } from '@ui/components/layout/app-shell';
+import { glManifest } from './modules/gl/manifest';
 
 // Global app instance
 export interface ConcreteApp {
@@ -96,10 +97,25 @@ async function boot(): Promise<void> {
     // 6. Module system
     const modules = new ModuleManager(events, store, schemas, logger);
 
-    // 7. Router
+    // 7. Register Phase 1 — General Ledger module
+    modules.register(glManifest);
+
+    // 8. Router
     const router = new Router(events, modules, permissions);
 
-    // 8. UI Shell
+    // Register module routes with the router
+    for (const mod of modules.getAll()) {
+      for (const route of mod.manifest.routes) {
+        router.register({
+          path: route.path,
+          component: route.component,
+          title: route.title,
+          icon: route.icon,
+        });
+      }
+    }
+
+    // 10. UI Shell
     const shell = new AppShell();
 
     // Assemble app
@@ -131,23 +147,23 @@ async function boot(): Promise<void> {
     // Fire lifecycle events
     events.emit('app.boot', { app });
 
-    // 9. Register service worker (non-blocking)
+    // 11. Register service worker (non-blocking)
     if (env.isProd) {
       ServiceWorkerManager.register().catch((err) => {
         logger.warn('sw', 'Service worker registration failed', err);
       });
     }
 
-    // 10. Mount UI
+    // 12. Mount UI
     const root = document.getElementById('app');
     if (root) {
       shell.mount(root);
     }
 
-    // 11. Start router (renders initial view)
+    // 13. Start router (renders initial view)
     router.start();
 
-    // 12. Boot complete
+    // 14. Boot complete
     events.emit('app.ready', { app });
     logger.info('app', 'Concrete ready');
   } catch (err) {
