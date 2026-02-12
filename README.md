@@ -1,4 +1,4 @@
-# FinConsol - Financial Consolidation Dashboard
+# Concrete - Financial Consolidation Dashboard
 
 A comprehensive, client-side financial consolidation dashboard for managing multi-entity organizations with 500+ subsidiaries. Built as a static web app deployable on GitHub Pages.
 
