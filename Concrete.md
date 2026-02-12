@@ -1,8 +1,8 @@
 # Concrete — Construction Financial & Operations Platform
 
 > Replacing Foundation. Built for construction companies scaling from 1 to 1,000,000 employees.
-> Browser-first, static deployment (GitHub Pages / Cloudflare Pages), localStorage + IndexedDB,
-> with future Cloudflare Workers + D1 live backend.
+> Vite + TypeScript + Tailwind CSS frontend. PHP API backend. Browser-first architecture.
+> Static deploy (GitHub Pages) → Cloudflare Pages + Workers + D1 live backend.
 
 ---
 
@@ -40,12 +40,43 @@ Foundation Software is the unified back-office financial platform for contractor
 
 ---
 
-## Architecture Principles
+## Technology Stack
 
-- **Phase 1–15**: Fully static. All data in browser (localStorage → IndexedDB). Export/import JSON/CSV.
-- **Phase 16–25**: Cloudflare Pages + Workers. D1 database. Auth via Cloudflare Access.
-- **Phase 26–35**: Multi-tenant SaaS. Real-time sync. Offline-first with conflict resolution.
-- **Phase 36–40**: Enterprise federation. API marketplace. AI/ML. Regulatory automation.
+### Frontend (Browser — the entire application lives here)
+
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| **Build** | Vite 6.x | Instant HMR, native ESM, tree-shaking, code-splitting per module |
+| **Language** | TypeScript 5.x (strict mode) | Type safety across 40+ modules, refactor confidence, IDE intelligence |
+| **Styling** | Tailwind CSS 4.x | Utility-first, design tokens, dark/light theming, purged production CSS |
+| **Charts** | Chart.js 4.x | Line, bar, doughnut, waterfall, combo, Gantt (via plugin) |
+| **CSV** | Papa Parse 5.x | Streaming CSV parse for million-row imports |
+| **PDF** | jsPDF + html2canvas | Client-side AIA forms, certified payroll, financial statements |
+| **Dates** | date-fns | Tree-shakeable, immutable, locale-aware date math |
+| **State** | Custom reactive store (Phase Zed) | Observable collections, computed views, undo/redo, persistence abstraction |
+| **Offline** | IndexedDB (via idb) + Service Worker | Full offline operation, background sync, CRDT merge |
+| **Testing** | Vitest + Playwright | Unit/integration in Vitest, E2E in Playwright, CI in GitHub Actions |
+
+### Backend (PHP — API layer when graduating from static)
+
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| **Runtime** | PHP 8.3+ | Mature ecosystem, hosting everywhere, Cloudflare via php-wasm or proxy |
+| **Framework** | Laravel 11 (or Slim for lightweight) | Routing, ORM, queues, auth, validation, migrations |
+| **API** | REST + JSON:API spec | Standardized pagination, filtering, includes, sparse fieldsets |
+| **Auth** | Laravel Sanctum / Passport | Token-based SPA auth, API keys for integrations, OAuth2 provider |
+| **Database** | SQLite (local/D1) → MySQL/PostgreSQL (scale) | Start with zero infrastructure, migrate up without schema changes |
+| **Queue** | Laravel Queues (Redis/DB) | Payroll runs, report generation, bulk imports, email |
+| **Storage** | Local disk → Cloudflare R2 / S3 | Documents, photos, backups, exports |
+
+### Infrastructure Progression
+
+| Stage | Stack | Data |
+|-------|-------|------|
+| **Phase Zed–15** | Vite dev server or static build, no backend | localStorage → IndexedDB, JSON export/import |
+| **Phase 16–25** | Cloudflare Pages (frontend) + PHP Workers or VPS (API) | D1/SQLite → MySQL, R2 for files |
+| **Phase 26–35** | Cloudflare Pages + Workers + PHP API + Durable Objects | D1 sharding, KV cache, R2 storage, WebSocket sync |
+| **Phase 36–40** | Multi-region, federated, API marketplace | Sharded DB, read replicas, cold archive in R2 |
 
 ### Data Tiers
 
@@ -57,10 +88,548 @@ Foundation Software is the unified back-office financial platform for contractor
 
 ### Import/Export/Merge Strategy
 
-- **Export**: JSON full backup, CSV per collection, PDF reports
-- **Import**: CSV with column mapping wizard, JSON restore, QuickBooks IIF, AIA G702/G703
-- **Merge Import**: Deduplicate by composite keys, conflict resolution UI, audit trail of all merges
+- **Export**: JSON full backup, CSV per collection, PDF reports, API JSON
+- **Import**: CSV with column mapping wizard, JSON restore, QuickBooks IIF, AIA G702/G703, Foundation export
+- **Merge Import**: Deduplicate by composite keys, conflict resolution UI, audit trail, dry-run preview, batch undo
 - **Sync**: Eventual consistency via CRDTs (Phase 26+)
+
+---
+
+## Phase Zed — The Skeleton
+
+> **This is the foundation under every phase that follows. Nothing ships before Zed is solid.**
+> Every module, DLC, expansion, add-on, and future feature plugs into this skeleton.
+> If Zed breaks, everything above it crumbles. Design it for 40 phases and 1,000,000 employees.
+
+### Zed.1 — Project Scaffold & Build Pipeline
+
+- [ ] Initialize Vite 6.x project with TypeScript strict mode
+- [ ] Configure path aliases: `@core`, `@modules`, `@ui`, `@stores`, `@types`, `@utils`, `@plugins`
+- [ ] Tailwind CSS 4.x with custom design tokens (colors, spacing, typography, radii, shadows)
+- [ ] Dark theme as default, light theme ready, theme switching via CSS custom properties + Tailwind
+- [ ] PostCSS pipeline: Tailwind → autoprefixer → cssnano (production)
+- [ ] Vite code-splitting: each module is a lazy-loaded chunk (Phase 1 = chunk, Phase 3 = chunk, etc.)
+- [ ] Environment configuration: `.env.local`, `.env.staging`, `.env.production`
+- [ ] Build targets: `static` (no backend, GitHub Pages), `cloudflare` (Pages + Workers), `php` (Laravel API)
+- [ ] GitHub Actions CI: lint → typecheck → test → build → deploy preview
+- [ ] ESLint + Prettier configured with strict TypeScript rules
+- [ ] Husky + lint-staged for pre-commit quality gates
+- [ ] Bundle analyzer for monitoring chunk sizes
+- [ ] Source maps in dev, stripped in production
+- [ ] Asset pipeline: images, fonts, icons (Heroicons or Lucide via tree-shaking)
+
+### Zed.2 — Type System & Schema Registry
+
+> Every data type that will ever exist in Concrete gets defined here. This is the single source of truth.
+
+- [ ] Base entity interface: `{ id: string; createdAt: string; updatedAt: string; deletedAt?: string; version: number; tenantId?: string; }`
+- [ ] Schema registry: central map of all collection names → TypeScript interfaces → validation rules
+- [ ] Schema versioning: every schema has a version number, migrations run on load
+- [ ] Schema migration engine: `migrations/001_initial.ts`, `migrations/002_add_jobs.ts`, etc.
+- [ ] Forward-compatible schema: unknown fields preserved (never strip data you don't recognize)
+- [ ] Relationships defined in schema: `{ foreignKey: 'entityId', collection: 'entities', cascade: 'nullify' }`
+- [ ] Computed/virtual fields defined in schema (e.g., `netIncome` computed from revenue - expenses)
+- [ ] Validation rules per field: required, type, min, max, pattern, enum, custom validator function
+- [ ] Custom field extension system: tenants/modules can register new fields on any collection
+- [ ] Custom collection extension system: modules can register entirely new collections
+- [ ] Type generation: schemas produce TypeScript interfaces, runtime validators, and form field configs
+- [ ] Collection manifest: declares which module owns which collection, prevents namespace collisions
+
+**Initial schema definitions (stubs — populated in their respective phases):**
+
+```
+core/company          core/user             core/role
+core/permission       core/auditLog         core/config
+core/notification     core/attachment       core/comment
+core/tag              core/customField      core/savedFilter
+
+gl/account            gl/journalEntry       gl/journalLine
+gl/fiscalPeriod       gl/recurringEntry     gl/closingEntry
+
+job/job               job/costCode          job/budget
+job/budgetLine        job/wip               job/estimate
+job/estimateLine      job/bid
+
+entity/entity         entity/hierarchy      entity/alias
+
+ap/vendor             ap/invoice            ap/invoiceLine
+ap/payment            ap/paymentLine        ap/lienWaiver
+ap/complianceCert     ap/retention
+
+ar/customer           ar/invoice            ar/invoiceLine
+ar/payment            ar/aiaApplication     ar/retainage
+ar/billingSchedule    ar/billingMilestone
+
+payroll/employee      payroll/timeEntry     payroll/payRun
+payroll/payCheck      payroll/earning       payroll/deduction
+payroll/benefit       payroll/taxTable      payroll/taxFiling
+payroll/w2            payroll/workerComp
+
+union/union           union/rateTable       union/rateTableLine
+union/fringeBenefit   union/prevailingWage  union/certifiedPayroll
+union/apprentice      union/remittance
+
+equip/equipment       equip/rateTable       equip/usage
+equip/maintenance     equip/workOrder       equip/fuelLog
+equip/depreciation
+
+sub/subcontract       sub/changeOrder       sub/payApp
+sub/backcharge        sub/prequalification  sub/compliance
+
+po/purchaseOrder      po/poLine             po/receipt
+po/receiptLine        po/amendment
+
+doc/document          doc/revision          doc/template
+doc/transmittal       doc/photo
+
+proj/project          proj/phase            proj/task
+proj/milestone        proj/rfi              proj/submittal
+proj/dailyLog         proj/meetingMinutes   proj/punchList
+
+svc/serviceAgreement  svc/workOrder         svc/dispatch
+svc/call              svc/invoice
+
+inv/item              inv/location          inv/receipt
+inv/issue             inv/transfer          inv/count
+
+hr/position           hr/certification      hr/training
+hr/benefit            hr/leave              hr/applicant
+
+safety/incident       safety/inspection     safety/oshaLog
+safety/toolboxTalk    safety/corrective     safety/drugTest
+
+bond/surety           bond/bondPolicy       bond/claim
+bond/insurance        bond/coi
+
+bank/account          bank/statement        bank/statementLine
+bank/reconciliation   bank/matchRule
+
+contract/contract     contract/sov          contract/amendment
+contract/milestone    contract/closeout     contract/warranty
+
+fleet/asset           fleet/inspection      fleet/fuelCard
+fleet/assignment      fleet/depreciation
+
+analytics/dashboard   analytics/widget      analytics/savedReport
+analytics/kpiDef      analytics/benchmark
+
+workflow/template     workflow/instance      workflow/step
+workflow/approval     workflow/escalation
+
+integration/endpoint  integration/webhook   integration/apiKey
+integration/syncLog   integration/mapping
+
+plugin/manifest       plugin/config         plugin/customObject
+plugin/customField    plugin/script
+```
+
+### Zed.3 — Data Layer Abstraction (The Store)
+
+> The store must work identically whether data lives in localStorage, IndexedDB, D1, MySQL, or a PHP API.
+> Every phase reads/writes through this layer. It never touches storage directly.
+
+- [ ] `DataAdapter` interface: `get`, `getAll`, `query`, `insert`, `update`, `upsert`, `remove`, `bulkInsert`, `bulkUpdate`, `bulkRemove`, `count`, `aggregate`
+- [ ] `LocalStorageAdapter` — for tiny datasets and config (< 5MB)
+- [ ] `IndexedDBAdapter` — for full offline operation (unlimited via browser quota)
+- [ ] `ApiAdapter` — for PHP/Cloudflare backend (REST calls with same interface)
+- [ ] `CompositeAdapter` — reads from IndexedDB (fast), writes to both IndexedDB + API (sync)
+- [ ] Adapter auto-selection based on build target and data size
+- [ ] `Collection<T>` class: typed CRUD over any adapter, enforces schema validation
+- [ ] `Query<T>` builder: `.where('amount', '>', 1000).orderBy('date', 'desc').limit(50).offset(100)`
+- [ ] Query operators: `=`, `!=`, `>`, `<`, `>=`, `<=`, `in`, `notIn`, `contains`, `startsWith`, `between`, `isNull`, `isNotNull`
+- [ ] Aggregate functions: `sum`, `avg`, `min`, `max`, `count`, `groupBy`
+- [ ] Relationship resolution: `collection.query().include('vendor').include('job.costCodes')`
+- [ ] Transaction support: `store.transaction(async (tx) => { ... })` — atomic multi-collection writes
+- [ ] Optimistic locking via `version` field (prevent lost updates in concurrent edits)
+- [ ] Soft delete: `deletedAt` timestamp, filtered out by default, restorable
+- [ ] Audit trail: every mutation logged with `{ userId, timestamp, collection, recordId, operation, before, after }`
+- [ ] Change feed: subscribe to mutations `collection.onChange((event) => { ... })`
+- [ ] Computed views: define derived datasets that auto-update when source data changes
+- [ ] Batch operations with progress callbacks: `collection.bulkInsert(rows, { onProgress: (pct) => ... })`
+- [ ] Import/export per collection: `collection.exportJSON()`, `collection.importJSON(data, { merge: true })`
+- [ ] Data seeding: `store.seed('sample-data')` loads realistic construction demo data
+- [ ] Full backup/restore: `store.exportAll()` → JSON, `store.importAll(json)` with version migration
+
+### Zed.4 — Module System & Plugin Architecture
+
+> Every phase is a module. Modules can be loaded, unloaded, enabled, disabled. Third-party plugins use the same system.
+
+- [ ] `ModuleManifest` interface:
+  ```ts
+  {
+    id: string;                    // 'concrete.gl', 'concrete.payroll', 'plugin.my-custom'
+    name: string;                  // 'General Ledger'
+    version: string;               // '1.0.0' semver
+    phase: number;                 // Which phase introduced this module
+    dependencies: string[];        // ['concrete.core', 'concrete.entity']
+    collections: string[];         // Which schema collections this module owns
+    routes: RouteConfig[];         // URL routes this module handles
+    navItems: NavItemConfig[];     // Tabs/menu items to add to navigation
+    dashboardWidgets: WidgetConfig[]; // KPI cards, charts available to dashboards
+    settings: SettingsConfig[];    // Settings panels this module contributes
+    permissions: PermissionDef[];  // Permissions this module defines
+    workflows: WorkflowDef[];     // Workflow templates this module provides
+    importTypes: ImportTypeDef[]; // Data types available in import wizard
+    exportTypes: ExportTypeDef[]; // Data types available in export
+    hooks: HookRegistration[];    // Lifecycle hooks this module listens to
+    activate: () => Promise<void>; // Called when module is enabled
+    deactivate: () => Promise<void>; // Called when module is disabled
+  }
+  ```
+- [ ] Module registry: `ModuleManager.register(manifest)`, `ModuleManager.enable(id)`, `ModuleManager.disable(id)`
+- [ ] Dependency resolution: modules load in topological order, fail fast on missing deps
+- [ ] Lazy loading: module code loaded only when first navigated to (Vite dynamic import)
+- [ ] Module isolation: each module's state is namespaced, no cross-module direct state access
+- [ ] Inter-module communication via typed event bus (not direct function calls)
+- [ ] Module feature flags: `ModuleManager.isEnabled('concrete.payroll')` checked everywhere
+- [ ] Module configuration: per-module settings stored in `core/config` collection
+- [ ] Module health check: `module.healthCheck()` returns status for diagnostics
+- [ ] Core modules (cannot be disabled): `concrete.core`, `concrete.ui`, `concrete.store`, `concrete.router`
+- [ ] Optional modules (can be toggled): everything in Phases 1–40
+- [ ] Plugin sandbox: third-party plugins run in restricted scope, no direct DOM/store access outside their namespace
+- [ ] Plugin marketplace hooks: `install`, `uninstall`, `upgrade`, `configure`
+- [ ] Hot module replacement in dev: change a module, it reloads without losing app state
+
+### Zed.5 — Event Bus & Hook System
+
+> Modules talk to each other through events, never through direct imports. This is what makes the architecture extensible.
+
+- [ ] Typed event bus: `EventBus.emit<PayrollRunCompleted>('payroll.run.completed', payload)`
+- [ ] Typed listeners: `EventBus.on<PayrollRunCompleted>('payroll.run.completed', handler)`
+- [ ] Wildcard listeners: `EventBus.on('payroll.*', handler)` for module-level monitoring
+- [ ] Event priority: listeners execute in priority order (default 0, higher = first)
+- [ ] Async event handling: listeners can be async, bus waits for all to complete
+- [ ] Event cancellation: listener can `event.preventDefault()` to cancel downstream processing
+- [ ] Pre/post hooks on every store mutation:
+  - `before.insert.{collection}` — validate, transform, block
+  - `after.insert.{collection}` — side effects, notifications, cascading updates
+  - `before.update.{collection}`, `after.update.{collection}`
+  - `before.delete.{collection}`, `after.delete.{collection}`
+- [ ] Lifecycle hooks:
+  - `app.boot` — before anything renders
+  - `app.ready` — after all modules loaded
+  - `module.activated` / `module.deactivated`
+  - `user.login` / `user.logout`
+  - `data.imported` / `data.exported`
+  - `navigation.before` / `navigation.after`
+  - `period.changed` / `entity.changed` (global filter changes)
+- [ ] Cross-module examples that must work:
+  - AP invoice approved → job cost committed cost updates → WIP recalculates
+  - Payroll run completes → job cost labor posts → GL entries created → cash flow updates
+  - Equipment hours logged → equipment cost posts to job → depreciation updates
+  - Change order approved → job budget adjusts → billing SOV updates → backlog recalculates
+  - Subcontractor payment → retention tracks → lien waiver required → compliance matrix updates
+- [ ] Event replay: store event history, replay for debugging or audit
+- [ ] Event throttle/debounce for high-frequency emitters
+
+### Zed.6 — Router & Navigation
+
+> Single-page app routing that supports 40+ modules, deep linking, breadcrumbs, and bookmarkable URLs.
+
+- [ ] Hash-based router (works on static file:// and GitHub Pages): `#/gl/accounts`, `#/jobs/2024-015/cost`
+- [ ] Route registration from modules: each module declares its routes in its manifest
+- [ ] Route parameters: `#/jobs/:jobId/cost-codes/:costCodeId`
+- [ ] Query parameters: `#/jobs?status=active&sort=margin&entity=abc123`
+- [ ] Nested routes: `#/jobs/:jobId` → layout with sub-nav → `/cost`, `/billing`, `/changes`, `/documents`
+- [ ] Route guards: `beforeEnter` hook for permission checks, unsaved changes warnings
+- [ ] Breadcrumb generation: auto-built from route hierarchy, clickable at each level
+- [ ] Navigation state persistence: current tab, filters, scroll position survive refresh
+- [ ] Deep linking: any view can be bookmarked and shared
+- [ ] Back/forward browser buttons work correctly
+- [ ] Global filters in URL: `?entity=abc123&period=ytd` applied across all routes
+- [ ] Route transitions: fade/slide animations between views
+- [ ] 404 handler: unknown routes show helpful "module not found" or "not enabled" message
+- [ ] Command palette (Ctrl+K / Cmd+K): search and jump to any route, record, or action
+
+### Zed.7 — UI Component Library
+
+> Every UI element used across 40 phases. Built once in Tailwind, used everywhere.
+
+**Layout:**
+- [ ] `AppShell` — top nav + content area + alerts panel + modals layer
+- [ ] `TopNav` — logo, module tabs (dynamically built from enabled modules), global filters, alerts, user menu
+- [ ] `TabBar` — horizontal scrollable tabs with active indicator, overflow menu on mobile
+- [ ] `Sidebar` — collapsible left panel for sub-navigation within a module
+- [ ] `ContentArea` — padded main content with max-width and responsive breakpoints
+- [ ] `SplitPane` — resizable two-panel layout (master-detail, list-form)
+- [ ] `Grid` — responsive CSS grid: `grid-2`, `grid-3`, `grid-4`, auto-fit with min-width
+- [ ] `Stack` — vertical flex layout with configurable gap
+
+**Data Display:**
+- [ ] `DataTable` — sortable, filterable, paginated, virtual-scroll for 100K+ rows, column resize, pin columns, row selection, inline edit, CSV export button
+- [ ] `KPICard` — label, value, trend indicator (up/down/flat), drill-down click, conditional color
+- [ ] `KPIRow` — responsive grid of KPI cards
+- [ ] `Chart` — wrapper around Chart.js with Concrete theming, responsive, destroy/rebuild on data change
+- [ ] `TreeView` — expandable hierarchy (entities, org chart, COA, cost codes)
+- [ ] `Timeline` — vertical event timeline (audit log, project history, payment history)
+- [ ] `Badge` / `Tag` — colored labels (status, type, health, priority)
+- [ ] `HealthDot` — green/yellow/red indicator
+- [ ] `ProgressBar` — with label, percentage, color thresholds
+- [ ] `BreakdownBar` — stacked horizontal bar showing composition (e.g., cost type breakdown)
+- [ ] `EmptyState` — icon + message + action button for empty collections
+- [ ] `Stat` — large number with label (used in summary cards)
+- [ ] `Avatar` — user/entity initials with color based on name hash
+- [ ] `Tooltip` — contextual help on hover/focus
+
+**Forms:**
+- [ ] `Form` — auto-generated from schema field definitions, handles validation and submission
+- [ ] `TextField` — text input with label, placeholder, error state, help text
+- [ ] `NumberField` — formatted number input (currency, percentage, integer)
+- [ ] `CurrencyField` — amount input with currency symbol, negative handling, auto-format
+- [ ] `DateField` — date picker with calendar popup, relative dates, fiscal period awareness
+- [ ] `DateRangeField` — start/end date with presets (MTD, QTD, YTD, Last 12, Custom)
+- [ ] `SelectField` — dropdown with search, multi-select, create-new option
+- [ ] `EntitySelect` — entity picker with hierarchy, search, recently used
+- [ ] `JobSelect` — job picker with status filter, search, recently used
+- [ ] `AccountSelect` — COA picker with hierarchy, search, type filter
+- [ ] `CostCodeSelect` — cost code picker scoped to selected job
+- [ ] `CheckboxField` / `ToggleField` — boolean inputs
+- [ ] `TextAreaField` — multi-line with character count
+- [ ] `FileUpload` — drag-drop zone, multi-file, progress indicator, file type validation
+- [ ] `FormSection` — collapsible group of fields with header
+- [ ] `FormActions` — save/cancel/delete button bar with loading states
+- [ ] `InlineEdit` — click-to-edit on table cells or display values
+
+**Overlays:**
+- [ ] `Modal` — centered overlay with title, body, close, sizes (sm, md, lg, xl, full)
+- [ ] `SlidePanel` — right-side panel for detail views (drill-downs, alerts, edit forms)
+- [ ] `Drawer` — bottom sheet on mobile
+- [ ] `ConfirmDialog` — "Are you sure?" with customizable actions
+- [ ] `Toast` — notification popups (success, error, warning, info) with auto-dismiss
+- [ ] `CommandPalette` — Ctrl+K searchable action/navigation overlay
+
+**Navigation:**
+- [ ] `Breadcrumb` — auto-generated from route, clickable segments
+- [ ] `FilterBar` — horizontal bar with search input, dropdowns, active filter tags
+- [ ] `Pagination` — page numbers + per-page selector + total count
+- [ ] `TabNav` — horizontal tabs for sub-views within a page
+
+**Specialized (construction-specific):**
+- [ ] `ScheduleOfValues` — editable table for AIA billing line items
+- [ ] `GanttChart` — horizontal bar chart with dependencies, milestones, critical path
+- [ ] `DispatchBoard` — drag-drop grid (rows = technicians, cols = time slots)
+- [ ] `CostCodeTree` — hierarchical cost code browser with budget/actual columns
+- [ ] `AgingChart` — bar chart with current/30/60/90/120+ buckets
+- [ ] `WaterfallChart` — revenue → deductions → net income flow
+- [ ] `HierarchyOrgChart` — visual org chart with entity/employee nodes
+
+### Zed.8 — Permission & Access Control Framework
+
+> Designed for 1,000,000 employees. Must support field-level, row-level, and module-level security from day 1.
+
+- [ ] Permission definition: `{ resource: 'ap.invoice', action: 'create' | 'read' | 'update' | 'delete' | 'approve' | 'export' }`
+- [ ] Granularity levels:
+  - **Module**: can access AP module at all?
+  - **Collection**: can read vendors? can write invoices?
+  - **Record**: can see invoices for this entity/job only?
+  - **Field**: can see SSN? can edit pay rate?
+  - **Action**: can approve POs > $50K?
+- [ ] Role templates: Admin, Controller, Project Manager, AP Clerk, AR Clerk, Payroll Admin, Payroll Clerk, Estimator, Field Foreman, Technician, Read-Only, Custom
+- [ ] Role composition: user can have multiple roles, permissions are union (most permissive wins)
+- [ ] Row-level security filters: `{ entityId: ['ent-1', 'ent-2'] }` limits data to specific entities
+- [ ] Segregation of duties rules: `{ cannot: ['create', 'approve'], on: 'ap.invoice', sameRecord: true }`
+- [ ] Permission checking API: `can('create', 'ap.invoice')`, `canAccessEntity('ent-1')`, `canSeeField('payroll.employee', 'ssn')`
+- [ ] UI integration: buttons/tabs/fields auto-hide when user lacks permission
+- [ ] Route guard integration: routes blocked if user lacks module access
+- [ ] Query filter integration: store automatically filters queries by user's entity access
+- [ ] Offline permission cache: permissions stored locally, validated against server on sync
+- [ ] Permission audit: log every access check failure for security review
+- [ ] Default deny: everything is blocked unless explicitly granted
+
+### Zed.9 — Notification & Alert System
+
+> Real-time alerts, system notifications, and user-configurable thresholds.
+
+- [ ] Notification types: `critical`, `warning`, `info`, `success`, `action-required`
+- [ ] Notification channels: in-app toast, in-app bell/panel, email (Phase 16+), push (Phase 26+), webhook
+- [ ] Notification sources:
+  - Store hooks: threshold breaches (e.g., job margin < 5%)
+  - Workflow engine: approval required, approval granted/denied
+  - Compliance: expiring insurance, overdue certified payroll, license expiration
+  - Schedule: upcoming milestones, overdue tasks
+  - Import: batch complete, errors found
+  - System: backup complete, sync conflict, module update
+- [ ] Notification preferences: per-user, per-notification-type channel selection
+- [ ] Alert rules engine: configurable rules `{ field, operator, value, action }` on any collection
+- [ ] Alert aggregation: batch similar alerts (e.g., "15 insurance certs expiring this week")
+- [ ] Alert acknowledgment: mark as read, snooze, dismiss
+- [ ] Alert history: full log of all notifications with status
+- [ ] Alerts panel UI: right-side slide panel, badge count on nav, grouped by severity
+
+### Zed.10 — Import/Export Framework
+
+> The universal pipeline that every phase's import/export flows through. Must handle Foundation migration day 1.
+
+- [ ] `ImportPipeline` class:
+  1. **Parse**: file → rows (CSV, TSV, JSON, IIF, fixed-width, Excel via SheetJS)
+  2. **Map**: column headers → schema fields (auto-detect + manual override + saved templates)
+  3. **Transform**: parse dates, amounts, entity resolution, type inference, categorization
+  4. **Validate**: required fields, data types, referential integrity, custom rules
+  5. **Dedup**: composite key matching against existing data
+  6. **Preview**: dry-run showing adds/updates/skips/errors before commit
+  7. **Execute**: batch insert/update with progress callback
+  8. **Audit**: record import batch in audit log with full manifest
+  9. **Undo**: revert entire batch by import batch ID
+- [ ] `ExportPipeline` class:
+  1. **Query**: collection + filters + entity scope + date range
+  2. **Transform**: format dates, amounts, flatten relationships
+  3. **Format**: CSV, TSV, JSON, PDF, Excel
+  4. **Deliver**: browser download, clipboard, or API response
+- [ ] Merge strategies per field: `skip` (keep existing), `overwrite` (take imported), `append` (for arrays), `sum` (for amounts), `manual` (prompt user)
+- [ ] Column mapping template system: save/load/share mapping configurations
+- [ ] Entity resolution during import: fuzzy name matching with aliases, create-or-link UI
+- [ ] Import wizard UI: 5-step flow (upload → type → map → preview → results)
+- [ ] Streaming import for large files: process in chunks, don't block the UI thread (Web Worker)
+- [ ] Import file format auto-detection: sniff delimiter, encoding, date format from first 100 rows
+- [ ] Import history: list all past imports with stats, undo button, re-run button
+
+### Zed.11 — Reporting & PDF Engine
+
+> Every phase generates reports. This is the renderer they all use.
+
+- [ ] `ReportDefinition` interface: title, subtitle, columns, grouping, sorting, filters, totals, chart
+- [ ] Report viewer: paginated table with headers, subtotals, grand totals, print-optimized CSS
+- [ ] Report export: PDF (via jsPDF), CSV, Excel (via SheetJS), JSON
+- [ ] PDF template engine: company letterhead, page numbers, headers/footers, multi-page tables
+- [ ] Pre-built report types: Tabular, Summary, Matrix (cross-tab), Detail with subtotals
+- [ ] Custom report builder (Phase 11): drag columns, set filters, choose grouping, save as template
+- [ ] Report library: saved report definitions, shared across users
+- [ ] Report scheduling placeholder: hooks for Phase 16+ automated delivery
+- [ ] Construction-specific report formats:
+  - AIA G702 / G703 forms
+  - Certified Payroll WH-347
+  - OSHA 300 / 300A / 301 logs
+  - 1099 forms
+  - WIP schedule (standard format)
+  - Job cost detail / summary (standard format)
+
+### Zed.12 — Undo/Redo & History
+
+- [ ] Command pattern: every user action creates a reversible command
+- [ ] Undo stack: per-session, survives tab navigation (not page reload)
+- [ ] Redo stack: re-apply undone commands
+- [ ] Multi-record undo: "undo import batch" reverses hundreds of inserts in one action
+- [ ] History panel: view recent actions with undo buttons
+- [ ] Audit log (persistent): every mutation recorded permanently for compliance
+- [ ] Version history per record: view all changes to a record over time, diff view
+- [ ] Restore to version: revert a specific record to any prior state
+
+### Zed.13 — Search & Command Palette
+
+- [ ] Global search: type anywhere, search across all collections (by name, number, description)
+- [ ] Search index: client-side inverted index built on data load, updated on mutations
+- [ ] Scoped search: within current module/collection only
+- [ ] Search result types: entity, job, vendor, employee, transaction, document, report
+- [ ] Result ranking: exact match > starts with > contains > fuzzy, weighted by collection priority
+- [ ] Recent searches: stored per user
+- [ ] Command palette (Ctrl+K): combines search + navigation + actions
+  - "Go to AP" → navigates to AP module
+  - "New invoice" → opens invoice creation form
+  - "Job 2024-015" → navigates to job detail
+  - "Export transactions" → opens export dialog
+  - "Run payroll" → opens payroll run wizard
+- [ ] Keyboard navigation: arrow keys, enter to select, escape to close
+
+### Zed.14 — Keyboard Shortcuts & Accessibility
+
+- [ ] Global shortcuts:
+  - `Ctrl+K` / `Cmd+K` — command palette
+  - `Ctrl+Z` / `Cmd+Z` — undo
+  - `Ctrl+Shift+Z` / `Cmd+Shift+Z` — redo
+  - `Ctrl+S` / `Cmd+S` — save current form
+  - `Ctrl+N` / `Cmd+N` — new record in current module
+  - `Escape` — close modal/panel
+  - `?` — show keyboard shortcut help
+- [ ] Table navigation: arrow keys, enter to edit, tab between cells
+- [ ] Form navigation: tab between fields, enter to submit
+- [ ] Screen reader support: ARIA labels, roles, live regions
+- [ ] Focus management: trap focus in modals, restore focus on close
+- [ ] Color contrast: WCAG AA minimum on all text/background combinations
+- [ ] Reduced motion: respect `prefers-reduced-motion` media query
+- [ ] Keyboard shortcut customization: users can rebind shortcuts
+
+### Zed.15 — Internationalization & Localization Hooks
+
+> Concrete starts in English/USD, but the skeleton must support any language/currency/locale from day 1.
+
+- [ ] i18n string system: all UI text via `t('ap.invoice.title')` function, never hardcoded
+- [ ] Locale files: `en-US.json` shipped, structure ready for any language
+- [ ] Number formatting: locale-aware (1,234.56 vs 1.234,56)
+- [ ] Currency formatting: symbol, position, decimal places per currency
+- [ ] Date formatting: locale-aware (MM/DD/YYYY vs DD/MM/YYYY vs YYYY-MM-DD)
+- [ ] RTL layout support: CSS logical properties, Tailwind RTL plugin
+- [ ] Timezone handling: all dates stored UTC, displayed in user's timezone
+- [ ] Pluralization rules per language
+- [ ] Module-level translation namespacing: `payroll.employee.title` vs `hr.employee.title`
+
+### Zed.16 — Error Handling, Logging & Diagnostics
+
+- [ ] Global error boundary: catch unhandled errors, show recovery UI, log to diagnostics
+- [ ] Structured logging: `Logger.error('ap.invoice', 'Save failed', { invoiceId, error })`
+- [ ] Log levels: debug, info, warn, error, fatal
+- [ ] Log destinations: browser console (dev), in-memory ring buffer, remote endpoint (Phase 16+)
+- [ ] Error reporting: stack traces, user context, module context, last 50 actions
+- [ ] Performance monitoring: module load times, query times, render times
+- [ ] Diagnostics panel (Settings > Diagnostics): system info, storage usage, module status, log viewer
+- [ ] Health dashboard: data integrity checks, orphaned records, schema version mismatches
+- [ ] Graceful degradation: if a module fails to load, other modules continue working
+
+### Zed.17 — Testing Infrastructure
+
+- [ ] Vitest config: unit + integration tests, TypeScript, coverage thresholds
+- [ ] Test utilities: `createTestStore()`, `createTestModule()`, `mockAdapter()`, `seedTestData()`
+- [ ] Schema tests: every collection has tests for validation rules, relationships, migrations
+- [ ] Store tests: CRUD, queries, transactions, optimistic locking, soft delete, audit trail
+- [ ] Module tests: each module has tests for its activation, routes, permissions, event handlers
+- [ ] Component tests: every UI component has visual regression tests
+- [ ] E2E tests (Playwright): setup wizard, data import, navigation, forms, export
+- [ ] Performance tests: measure query times with 10K, 100K, 1M records
+- [ ] CI pipeline: all tests run on every PR, block merge on failure
+- [ ] Test data generators: `generateJob()`, `generateInvoice()`, `generatePayroll()` with realistic construction data
+
+### Zed.18 — Service Worker & Offline Shell
+
+- [ ] Service worker registration on first load
+- [ ] App shell caching: HTML, CSS, JS cached for instant offline load
+- [ ] Data caching strategy: IndexedDB as primary, sync to remote when online
+- [ ] Background sync: queued mutations replayed when connectivity returns
+- [ ] Offline indicator: visible status bar when offline, sync progress when reconnecting
+- [ ] Cache versioning: new deploy invalidates old cache, seamless update
+- [ ] Precache manifest: Vite generates list of assets to precache
+- [ ] Network-first for API calls (when backend exists), cache-first for static assets
+
+### Zed.19 — Configuration & Feature Flags
+
+- [ ] App config stored in `core/config` collection
+- [ ] Feature flags: `config.features.payroll.unionPayroll = true/false`
+- [ ] Module enable/disable: persisted in config, checked by router and UI
+- [ ] Tenant config: org name, base currency, fiscal year start, date format, number format
+- [ ] User preferences: theme, language, timezone, default entity, default period, sidebar collapsed
+- [ ] Setup wizard: first-run flow that collects org name, mode (single/multi/full), currency, entities
+- [ ] Config export/import: share configuration between environments or tenants
+- [ ] Environment detection: `isDev()`, `isStaging()`, `isProd()`, `isStatic()`, `hasBackend()`
+
+### Zed.20 — Demo Data & Seed System
+
+> Every phase needs realistic demo data for testing, sales demos, and development.
+
+- [ ] `SeedManager` with named seed profiles: `starter`, `mid-market`, `enterprise`, `demo`
+- [ ] Seed data generators per collection: realistic names, amounts, dates, distributions
+- [ ] Construction-specific seed data:
+  - 5 entities (GC, 2 subs, equipment division, service division)
+  - 20 jobs across entity types (commercial, residential, highway, utility)
+  - 500+ cost codes (CSI MasterFormat standard)
+  - 200 vendors with realistic trade categories
+  - 50 employees with union affiliations, multi-state
+  - 100 equipment items with utilization history
+  - 12 months of transactions, invoices, pay runs
+  - Realistic WIP positions (some over-billed, some under-billed)
+  - Aging buckets in AP and AR
+  - Active subcontracts with retention
+  - Change orders in various statuses
+- [ ] Seed data scales: `small` (1 entity, 5 jobs), `medium` (5 entities, 50 jobs), `large` (20 entities, 500 jobs)
+- [ ] One-click reset: clear all data and re-seed
+- [ ] Incremental seed: add more data to existing dataset
 
 ---
 
