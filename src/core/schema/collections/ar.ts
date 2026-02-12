@@ -1,6 +1,7 @@
 /**
- * Accounts Receivable module collection schemas.
- * customer, invoice, invoiceLine, payment, aiaApplication, retainage, billingSchedule, billingMilestone.
+ * Accounts Receivable module collection schemas (v2).
+ * Phase 5: customer, invoice, invoiceLine, payment, aiaApplication,
+ * retainage, billingSchedule, billingMilestone.
  */
 
 import type { SchemaDef } from '../../types/schema';
@@ -9,52 +10,85 @@ export const arSchemas: SchemaDef[] = [
   {
     collection: 'ar/customer',
     module: 'ar',
-    version: 1,
+    version: 2,
     fields: [
       { name: 'name', type: 'string', required: true, label: 'Customer Name' },
-      { name: 'contactEmail', type: 'string', label: 'Contact Email' },
+      { name: 'code', type: 'string', label: 'Customer Code' },
       { name: 'status', type: 'enum', enum: ['active', 'inactive', 'hold'], label: 'Status' },
+      { name: 'contactName', type: 'string', label: 'Contact Name' },
+      { name: 'contactEmail', type: 'string', label: 'Contact Email' },
+      { name: 'contactPhone', type: 'string', label: 'Contact Phone' },
+      { name: 'address', type: 'string', label: 'Address' },
+      { name: 'city', type: 'string', label: 'City' },
+      { name: 'state', type: 'string', label: 'State' },
+      { name: 'zip', type: 'string', label: 'Zip' },
       { name: 'creditLimit', type: 'currency', label: 'Credit Limit' },
+      { name: 'terms', type: 'string', label: 'Payment Terms' },
+      { name: 'entityId', type: 'id', label: 'Entity' },
+      { name: 'ytdBillings', type: 'currency', label: 'YTD Billings' },
+      { name: 'ytdPayments', type: 'currency', label: 'YTD Payments' },
     ],
-    relations: [],
+    relations: [
+      { foreignKey: 'entityId', collection: 'entity/entity', type: 'belongsTo', cascade: 'nullify' },
+    ],
   },
   {
     collection: 'ar/invoice',
     module: 'ar',
-    version: 1,
+    version: 2,
     fields: [
       { name: 'customerId', type: 'id', required: true, label: 'Customer' },
+      { name: 'jobId', type: 'id', label: 'Job' },
       { name: 'invoiceNumber', type: 'string', required: true, label: 'Invoice Number' },
+      { name: 'invoiceDate', type: 'date', required: true, label: 'Invoice Date' },
+      { name: 'dueDate', type: 'date', label: 'Due Date' },
+      { name: 'billingType', type: 'enum', enum: ['progress', 'tm', 'unit_price', 'cost_plus', 'lump_sum'], label: 'Billing Type' },
       { name: 'amount', type: 'currency', required: true, label: 'Amount' },
+      { name: 'retainageAmount', type: 'currency', label: 'Retainage Amount' },
+      { name: 'taxAmount', type: 'currency', label: 'Tax Amount' },
+      { name: 'netAmount', type: 'currency', label: 'Net Amount' },
+      { name: 'paidAmount', type: 'currency', label: 'Paid Amount' },
+      { name: 'balanceDue', type: 'currency', label: 'Balance Due' },
       { name: 'status', type: 'enum', enum: ['draft', 'sent', 'partial', 'paid', 'overdue', 'voided'], label: 'Status' },
     ],
     relations: [
       { foreignKey: 'customerId', collection: 'ar/customer', type: 'belongsTo', cascade: 'restrict' },
+      { foreignKey: 'jobId', collection: 'job/job', type: 'belongsTo', cascade: 'nullify' },
     ],
   },
   {
     collection: 'ar/invoiceLine',
     module: 'ar',
-    version: 1,
+    version: 2,
     fields: [
       { name: 'invoiceId', type: 'id', required: true, label: 'Invoice' },
       { name: 'description', type: 'string', label: 'Description' },
       { name: 'quantity', type: 'number', label: 'Quantity' },
       { name: 'unitPrice', type: 'currency', label: 'Unit Price' },
+      { name: 'amount', type: 'currency', required: true, label: 'Amount' },
+      { name: 'costCodeId', type: 'id', label: 'Cost Code' },
+      { name: 'jobId', type: 'id', label: 'Job' },
+      { name: 'costType', type: 'enum', enum: ['labor', 'material', 'subcontract', 'equipment', 'other', 'overhead'], label: 'Cost Type' },
+      { name: 'markupPct', type: 'number', label: 'Markup %' },
     ],
     relations: [
       { foreignKey: 'invoiceId', collection: 'ar/invoice', type: 'belongsTo', cascade: 'cascade' },
+      { foreignKey: 'costCodeId', collection: 'job/costCode', type: 'belongsTo', cascade: 'nullify' },
+      { foreignKey: 'jobId', collection: 'job/job', type: 'belongsTo', cascade: 'nullify' },
     ],
   },
   {
     collection: 'ar/payment',
     module: 'ar',
-    version: 1,
+    version: 2,
     fields: [
       { name: 'customerId', type: 'id', required: true, label: 'Customer' },
       { name: 'date', type: 'date', required: true, label: 'Payment Date' },
       { name: 'amount', type: 'currency', required: true, label: 'Amount' },
       { name: 'method', type: 'enum', enum: ['check', 'ach', 'wire', 'credit-card'], label: 'Method' },
+      { name: 'referenceNumber', type: 'string', label: 'Reference Number' },
+      { name: 'memo', type: 'string', label: 'Memo' },
+      { name: 'status', type: 'enum', enum: ['pending', 'applied', 'voided'], label: 'Status' },
     ],
     relations: [
       { foreignKey: 'customerId', collection: 'ar/customer', type: 'belongsTo', cascade: 'restrict' },
@@ -63,11 +97,19 @@ export const arSchemas: SchemaDef[] = [
   {
     collection: 'ar/aiaApplication',
     module: 'ar',
-    version: 1,
+    version: 2,
     fields: [
       { name: 'jobId', type: 'id', required: true, label: 'Job' },
       { name: 'applicationNumber', type: 'number', required: true, label: 'Application Number' },
       { name: 'periodTo', type: 'date', label: 'Period To' },
+      { name: 'contractSum', type: 'currency', label: 'Original Contract Sum' },
+      { name: 'changeOrderTotal', type: 'currency', label: 'Change Order Total' },
+      { name: 'completedPreviousPeriod', type: 'currency', label: 'Completed Previous Period' },
+      { name: 'completedThisPeriod', type: 'currency', label: 'Completed This Period' },
+      { name: 'materialStored', type: 'currency', label: 'Materials Presently Stored' },
+      { name: 'totalCompleted', type: 'currency', label: 'Total Completed and Stored' },
+      { name: 'retainagePct', type: 'number', label: 'Retainage %' },
+      { name: 'retainageAmount', type: 'currency', label: 'Retainage Amount' },
       { name: 'status', type: 'enum', enum: ['draft', 'submitted', 'approved', 'paid'], label: 'Status' },
     ],
     relations: [
@@ -77,38 +119,51 @@ export const arSchemas: SchemaDef[] = [
   {
     collection: 'ar/retainage',
     module: 'ar',
-    version: 1,
+    version: 2,
     fields: [
       { name: 'invoiceId', type: 'id', required: true, label: 'Invoice' },
+      { name: 'customerId', type: 'id', required: true, label: 'Customer' },
+      { name: 'jobId', type: 'id', label: 'Job' },
       { name: 'amount', type: 'currency', required: true, label: 'Retainage Amount' },
-      { name: 'percentage', type: 'percentage', label: 'Retainage Percentage' },
-      { name: 'status', type: 'enum', enum: ['held', 'released', 'partial'], label: 'Status' },
+      { name: 'pct', type: 'number', label: 'Retainage %' },
+      { name: 'releasedAmount', type: 'currency', label: 'Released Amount' },
+      { name: 'remainingAmount', type: 'currency', label: 'Remaining Amount' },
+      { name: 'status', type: 'enum', enum: ['held', 'partial', 'released'], label: 'Status' },
     ],
     relations: [
       { foreignKey: 'invoiceId', collection: 'ar/invoice', type: 'belongsTo', cascade: 'cascade' },
+      { foreignKey: 'customerId', collection: 'ar/customer', type: 'belongsTo', cascade: 'restrict' },
+      { foreignKey: 'jobId', collection: 'job/job', type: 'belongsTo', cascade: 'nullify' },
     ],
   },
   {
     collection: 'ar/billingSchedule',
     module: 'ar',
-    version: 1,
+    version: 2,
     fields: [
       { name: 'jobId', type: 'id', required: true, label: 'Job' },
+      { name: 'customerId', type: 'id', required: true, label: 'Customer' },
       { name: 'name', type: 'string', required: true, label: 'Schedule Name' },
       { name: 'frequency', type: 'enum', enum: ['monthly', 'milestone', 'progress'], label: 'Frequency' },
+      { name: 'billingType', type: 'enum', enum: ['progress', 'tm', 'unit_price', 'cost_plus', 'lump_sum'], label: 'Billing Type' },
+      { name: 'startDate', type: 'date', label: 'Start Date' },
+      { name: 'endDate', type: 'date', label: 'End Date' },
     ],
     relations: [
       { foreignKey: 'jobId', collection: 'job/job', type: 'belongsTo', cascade: 'cascade' },
+      { foreignKey: 'customerId', collection: 'ar/customer', type: 'belongsTo', cascade: 'restrict' },
     ],
   },
   {
     collection: 'ar/billingMilestone',
     module: 'ar',
-    version: 1,
+    version: 2,
     fields: [
       { name: 'scheduleId', type: 'id', required: true, label: 'Billing Schedule' },
       { name: 'description', type: 'string', required: true, label: 'Milestone Description' },
       { name: 'amount', type: 'currency', required: true, label: 'Amount' },
+      { name: 'dueDate', type: 'date', label: 'Due Date' },
+      { name: 'percentOfContract', type: 'number', label: '% of Contract' },
       { name: 'status', type: 'enum', enum: ['pending', 'reached', 'billed', 'paid'], label: 'Status' },
     ],
     relations: [

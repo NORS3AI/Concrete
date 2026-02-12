@@ -1,0 +1,80 @@
+import type { ModuleManifest } from '../../core/types/module';
+
+export const estimatingManifest: ModuleManifest = {
+  id: 'concrete.estimating',
+  name: 'Estimating & Bid Management',
+  description: 'Estimate creation, assembly-based line items, markup/margin, bid solicitation, tabulation, estimate-to-budget transfer, historical cost database, and win/loss analysis',
+  version: '1.0.0',
+  phase: 13,
+  dependencies: ['concrete.gl', 'concrete.entity', 'concrete.job'],
+  collections: [
+    'job/estimate', 'job/estimateLine', 'job/bid',
+  ],
+  routes: [
+    { path: '/estimating', component: () => import('./views/estimate-list'), title: 'Estimates', icon: 'calculator' },
+    { path: '/estimating/new', component: () => import('./views/estimate-form'), title: 'New Estimate', icon: 'plus' },
+    { path: '/estimating/:id', component: () => import('./views/estimate-form'), title: 'Edit Estimate', icon: 'edit' },
+    { path: '/estimating/:id/lines', component: () => import('./views/estimate-lines'), title: 'Estimate Lines', icon: 'list' },
+    { path: '/estimating/:id/bids', component: () => import('./views/bid-solicitation'), title: 'Bid Solicitation', icon: 'send' },
+    { path: '/estimating/bid-tab', component: () => import('./views/bid-tabulation'), title: 'Bid Tabulation', icon: 'columns' },
+    { path: '/estimating/history', component: () => import('./views/cost-history'), title: 'Cost History', icon: 'database' },
+    { path: '/estimating/win-loss', component: () => import('./views/win-loss'), title: 'Win/Loss Analysis', icon: 'bar-chart-2' },
+  ],
+  navItems: [
+    { id: 'estimating', label: 'Estimating', icon: 'calculator', path: '/estimating', order: 130 },
+    { id: 'estimating-list', label: 'Estimates', icon: 'file-text', path: '/estimating', order: 1, parent: 'estimating' },
+    { id: 'estimating-new', label: 'New Estimate', icon: 'plus', path: '/estimating/new', order: 2, parent: 'estimating' },
+    { id: 'estimating-bid-tab', label: 'Bid Tabulation', icon: 'columns', path: '/estimating/bid-tab', order: 3, parent: 'estimating' },
+    { id: 'estimating-history', label: 'Cost History', icon: 'database', path: '/estimating/history', order: 4, parent: 'estimating' },
+    { id: 'estimating-win-loss', label: 'Win/Loss', icon: 'bar-chart-2', path: '/estimating/win-loss', order: 5, parent: 'estimating' },
+  ],
+  dashboardWidgets: [],
+  settings: [],
+  permissions: [
+    { resource: 'estimate', actions: ['create', 'read', 'update', 'delete', 'submit', 'export'], description: 'Estimate management' },
+    { resource: 'estimate.line', actions: ['create', 'read', 'update', 'delete', 'import'], description: 'Estimate line management' },
+    { resource: 'estimate.bid', actions: ['create', 'read', 'update', 'select', 'reject'], description: 'Bid solicitation and tracking' },
+    { resource: 'estimate.budget', actions: ['transfer'], description: 'Estimate-to-budget transfer' },
+    { resource: 'estimate.report', actions: ['read', 'export'], description: 'Estimating reports (tabulation, win/loss, history)' },
+  ],
+  workflows: [],
+  importTypes: [
+    {
+      id: 'estimate-lines',
+      label: 'Import Estimate Lines',
+      collection: 'job/estimateLine',
+      fields: [
+        { name: 'description', type: 'string', required: true, label: 'Description' },
+        { name: 'costType', type: 'string', required: true, label: 'Cost Type (labor/material/equipment/subcontract/other)' },
+        { name: 'quantity', type: 'number', label: 'Quantity' },
+        { name: 'unit', type: 'string', label: 'Unit of Measure' },
+        { name: 'unitCost', type: 'number', label: 'Unit Cost' },
+        { name: 'amount', type: 'number', label: 'Amount' },
+        { name: 'markupPct', type: 'number', label: 'Markup %' },
+        { name: 'costCodeId', type: 'string', label: 'Cost Code ID' },
+      ],
+      autoDetectHeaders: true,
+    },
+  ],
+  exportTypes: [
+    {
+      id: 'estimate-lines',
+      label: 'Export Estimate Lines',
+      collection: 'job/estimateLine',
+      defaultFields: ['description', 'costType', 'quantity', 'unit', 'unitCost', 'amount', 'markupPct', 'markupAmount', 'totalPrice'],
+    },
+    {
+      id: 'estimate-summary',
+      label: 'Export Estimate Summary',
+      collection: 'job/estimate',
+      defaultFields: ['name', 'revision', 'status', 'totalCost', 'totalMarkup', 'totalPrice', 'marginPct', 'clientName', 'projectName', 'bidDate'],
+    },
+    {
+      id: 'bid-tabulation',
+      label: 'Export Bid Tabulation',
+      collection: 'job/bid',
+      defaultFields: ['trade', 'vendorId', 'amount', 'status', 'isLowBid', 'receivedDate', 'notes'],
+    },
+  ],
+  hooks: [],
+};
