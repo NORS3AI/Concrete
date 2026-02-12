@@ -34,6 +34,7 @@ import { UndoManager } from '@core/history/undo-redo';
 import { ServiceWorkerManager } from '@core/service-worker';
 import { AppShell } from '@ui/components/layout/app-shell';
 import { glManifest } from './modules/gl/manifest';
+import { entityManifest } from './modules/entity/manifest';
 
 // Global app instance
 export interface ConcreteApp {
@@ -97,8 +98,9 @@ async function boot(): Promise<void> {
     // 6. Module system
     const modules = new ModuleManager(events, store, schemas, logger);
 
-    // 7. Register Phase 1 — General Ledger module
+    // 7. Register modules
     modules.register(glManifest);
+    modules.register(entityManifest);
 
     // 8. Router
     const router = new Router(events, modules, permissions);
