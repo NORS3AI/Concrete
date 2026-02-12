@@ -1,15 +1,15 @@
-# CLAUDE.md - FinConsol Development Guide
+# CLAUDE.md - Concrete Development Guide
 
 ## Project Overview
 
-FinConsol is a client-side financial consolidation dashboard. It is a single-page web application with no build step, no server-side code, and no package manager. All data is stored in browser localStorage.
+Concrete is a client-side financial consolidation dashboard. It is a single-page web application with no build step, no server-side code, and no package manager. All data is stored in browser localStorage.
 
 ## Architecture
 
 - **No framework**: Vanilla JavaScript with module pattern (IIFE singletons)
 - **No build step**: Script tags in index.html, no bundler
 - **CDN dependencies**: Chart.js 4.x, Papa Parse 5.x
-- **Storage**: localStorage under key `finConsol`
+- **Storage**: localStorage under key `concrete`
 
 ### Module Dependency Order
 
@@ -81,7 +81,7 @@ No automated tests currently. To manually verify:
 ## Common Tasks
 
 ### Reset the app state
-Open browser console: `localStorage.removeItem('finConsol')` then reload.
+Open browser console: `localStorage.removeItem('concrete')` then reload.
 
 ### Access data programmatically
 Open browser console:

@@ -30,7 +30,7 @@ js/
 
 ## Data Model
 
-All data lives in browser `localStorage` under key `finConsol`. Structured as:
+All data lives in browser `localStorage` under key `concrete`. Structured as:
 
 | Collection     | Description                                    |
 |---------------|------------------------------------------------|
