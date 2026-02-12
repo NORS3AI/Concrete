@@ -115,6 +115,14 @@ async function boot(): Promise<void> {
       }
     }
 
+    // Default route: redirect `/` to the first module's root path
+    router.register({
+      path: '/',
+      component: () => Promise.resolve(null),
+      title: 'Home',
+      meta: { redirect: '/gl' },
+    });
+
     // 10. UI Shell
     const shell = new AppShell();
 
@@ -160,7 +168,113 @@ async function boot(): Promise<void> {
       shell.mount(root);
     }
 
-    // 13. Start router (renders initial view)
+    // 13. Build navigation tabs from module nav items
+    const navTabs = document.getElementById('nav-tabs');
+    if (navTabs) {
+      const allNavItems = modules.getAll()
+        .flatMap((mod) => mod.manifest.navItems)
+        .filter((item) => !item.parent) // Only top-level items
+        .sort((a, b) => a.order - b.order);
+
+      for (const item of allNavItems) {
+        const btn = document.createElement('a');
+        btn.href = `#${item.path}`;
+        btn.className = 'px-3 py-1.5 rounded-md text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] transition-colors whitespace-nowrap';
+        btn.dataset.navId = item.id;
+        btn.textContent = item.label;
+        navTabs.appendChild(btn);
+      }
+
+      // Sub-nav: build a dropdown/submenu container below the top nav for child items
+      const subNav = document.createElement('div');
+      subNav.id = 'sub-nav';
+      subNav.className = 'flex items-center gap-1 px-4 py-1.5 bg-[var(--surface)] border-b border-[var(--border)] text-sm overflow-x-auto';
+      subNav.style.display = 'none';
+      shell.getTopNav()?.insertAdjacentElement('afterend', subNav);
+    }
+
+    // 14. Wire router to render views into content area on navigation
+    events.on('navigation.after', async (payload: unknown) => {
+      const { to } = payload as { to: { route: { path: string; component: () => Promise<unknown>; meta?: Record<string, unknown> }; params: Record<string, string>; query: Record<string, string> } };
+
+      // Handle redirect routes
+      if (to.route.meta?.redirect) {
+        void router.navigate(to.route.meta.redirect as string);
+        return;
+      }
+
+      const contentArea = shell.getContentArea();
+      if (!contentArea) return;
+
+      // Show loading state
+      contentArea.innerHTML = '<div class="flex items-center justify-center h-64"><div class="text-[var(--text-muted)]">Loading...</div></div>';
+
+      try {
+        // Lazy-load the view module
+        const viewModule = await to.route.component();
+        const view = viewModule as { default?: { render: (container: HTMLElement) => void } } | null;
+
+        if (view?.default?.render) {
+          contentArea.innerHTML = '';
+          view.default.render(contentArea);
+        } else {
+          contentArea.innerHTML = '<div class="p-4 text-[var(--text-muted)]">View not found.</div>';
+        }
+      } catch (err) {
+        logger.error('router', 'Failed to load view', err);
+        contentArea.innerHTML = `<div class="p-4 text-[var(--negative)]">Failed to load view: ${err instanceof Error ? err.message : String(err)}</div>`;
+      }
+
+      // Update active nav tab styling
+      const navTabs = document.getElementById('nav-tabs');
+      if (navTabs) {
+        const currentPath = to.route.path;
+        for (const link of navTabs.querySelectorAll('a[data-nav-id]')) {
+          const href = link.getAttribute('href')?.slice(1) || '';
+          const isActive = currentPath.startsWith(href);
+          link.className = isActive
+            ? 'px-3 py-1.5 rounded-md text-sm font-medium text-[var(--accent)] bg-[var(--accent)]/10 whitespace-nowrap'
+            : 'px-3 py-1.5 rounded-md text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] transition-colors whitespace-nowrap';
+        }
+      }
+
+      // Render sub-nav for current module
+      const subNav = document.getElementById('sub-nav');
+      if (subNav) {
+        const currentPath = to.route.path;
+        // Find parent nav item for current route
+        const allNavItems = modules.getAll().flatMap((mod) => mod.manifest.navItems);
+        const parentItem = allNavItems.find((item) => !item.parent && currentPath.startsWith(item.path));
+
+        if (parentItem) {
+          const children = allNavItems
+            .filter((item) => item.parent === parentItem.id)
+            .sort((a, b) => a.order - b.order);
+
+          if (children.length > 0) {
+            subNav.innerHTML = '';
+            subNav.style.display = 'flex';
+
+            for (const child of children) {
+              const link = document.createElement('a');
+              link.href = `#${child.path}`;
+              const isActive = currentPath === child.path || currentPath.startsWith(child.path + '/');
+              link.className = isActive
+                ? 'px-2.5 py-1 rounded text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 whitespace-nowrap'
+                : 'px-2.5 py-1 rounded text-xs text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] whitespace-nowrap';
+              link.textContent = child.label;
+              subNav.appendChild(link);
+            }
+          } else {
+            subNav.style.display = 'none';
+          }
+        } else {
+          subNav.style.display = 'none';
+        }
+      }
+    });
+
+    // 15. Start router (renders initial view)
     router.start();
 
     // 14. Boot complete
