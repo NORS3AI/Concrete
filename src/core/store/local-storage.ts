@@ -16,6 +16,7 @@ import type {
   BulkOptions,
   BulkUpdateEntry,
 } from './adapter';
+import { getNestedValue, applyFilters, applySorting } from './query-utils';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -23,98 +24,6 @@ import type {
 
 const STORAGE_KEY = 'concrete';
 const DEBOUNCE_MS = 100;
-
-// ---------------------------------------------------------------------------
-// Filter Evaluation
-// ---------------------------------------------------------------------------
-
-function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-  const parts = path.split('.');
-  let current: unknown = obj;
-  for (const part of parts) {
-    if (current == null || typeof current !== 'object') return undefined;
-    current = (current as Record<string, unknown>)[part];
-  }
-  return current;
-}
-
-function matchesFilter(record: Record<string, unknown>, filter: QueryFilter): boolean {
-  const value = getNestedValue(record, filter.field);
-  const target = filter.value;
-
-  switch (filter.operator) {
-    case '=':
-      return value === target;
-    case '!=':
-      return value !== target;
-    case '>':
-      return (value as number) > (target as number);
-    case '<':
-      return (value as number) < (target as number);
-    case '>=':
-      return (value as number) >= (target as number);
-    case '<=':
-      return (value as number) <= (target as number);
-    case 'in':
-      return Array.isArray(target) && target.includes(value);
-    case 'notIn':
-      return Array.isArray(target) && !target.includes(value);
-    case 'contains':
-      return typeof value === 'string' && typeof target === 'string' && value.includes(target);
-    case 'startsWith':
-      return typeof value === 'string' && typeof target === 'string' && value.startsWith(target);
-    case 'between': {
-      if (!Array.isArray(target) || target.length !== 2) return false;
-      const num = value as number;
-      return num >= (target[0] as number) && num <= (target[1] as number);
-    }
-    case 'isNull':
-      return value == null;
-    case 'isNotNull':
-      return value != null;
-    default: {
-      // Exhaustiveness — should never reach here
-      const _exhaustive: never = filter.operator as never;
-      void _exhaustive;
-      return false;
-    }
-  }
-}
-
-function applyFilters(
-  records: Record<string, unknown>[],
-  filters: QueryFilter[],
-): Record<string, unknown>[] {
-  return records.filter((rec) => filters.every((f) => matchesFilter(rec, f)));
-}
-
-// ---------------------------------------------------------------------------
-// Sorting
-// ---------------------------------------------------------------------------
-
-function applySorting(
-  records: Record<string, unknown>[],
-  orderBy: { field: string; direction: 'asc' | 'desc' }[],
-): Record<string, unknown>[] {
-  const sorted = [...records];
-  sorted.sort((a, b) => {
-    for (const { field, direction } of orderBy) {
-      const aVal = getNestedValue(a, field);
-      const bVal = getNestedValue(b, field);
-      let cmp = 0;
-      if (aVal == null && bVal == null) cmp = 0;
-      else if (aVal == null) cmp = -1;
-      else if (bVal == null) cmp = 1;
-      else if (typeof aVal === 'string' && typeof bVal === 'string') cmp = aVal.localeCompare(bVal);
-      else if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
-      else cmp = String(aVal).localeCompare(String(bVal));
-
-      if (cmp !== 0) return direction === 'desc' ? -cmp : cmp;
-    }
-    return 0;
-  });
-  return sorted;
-}
 
 // ---------------------------------------------------------------------------
 // LocalStorageAdapter

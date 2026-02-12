@@ -32,3 +32,6 @@ export { ApiAdapter } from './api';
 export type { ApiAdapterConfig } from './api';
 export { CompositeAdapter } from './composite';
 export type { SyncAction, SyncQueueEntry } from './composite';
+
+// ---- Query Utilities (shared across adapters & consumers) ----
+export { getNestedValue, matchesFilter, applyFilters, applySorting } from './query-utils';
