@@ -1,0 +1,50 @@
+import type { ModuleManifest } from '../../core/types/module';
+
+export const authManifest: ModuleManifest = {
+  id: 'concrete.auth',
+  name: 'Authentication & Authorization',
+  description: 'User management, role-based access control, session management, API keys, audit logging, MFA, and security settings',
+  version: '1.0.0',
+  phase: 16,
+  dependencies: ['concrete.entity'],
+  collections: [
+    'auth/user', 'auth/role', 'auth/session', 'auth/apiKey', 'auth/auditLog',
+  ],
+  routes: [
+    { path: '/auth/users', component: () => import('./views/user-list'), title: 'Users', icon: 'users' },
+    { path: '/auth/users/new', component: () => import('./views/user-form'), title: 'New User', icon: 'user-plus' },
+    { path: '/auth/users/:id', component: () => import('./views/user-form'), title: 'Edit User', icon: 'edit' },
+    { path: '/auth/roles', component: () => import('./views/role-list'), title: 'Roles', icon: 'shield' },
+    { path: '/auth/roles/:id', component: () => import('./views/role-form'), title: 'Edit Role', icon: 'edit' },
+    { path: '/auth/sessions', component: () => import('./views/sessions'), title: 'Sessions', icon: 'monitor' },
+    { path: '/auth/api-keys', component: () => import('./views/api-keys'), title: 'API Keys', icon: 'key' },
+    { path: '/auth/audit-log', component: () => import('./views/audit-log'), title: 'Audit Log', icon: 'list' },
+    { path: '/auth/settings', component: () => import('./views/settings'), title: 'Auth Settings', icon: 'settings' },
+  ],
+  navItems: [
+    { id: 'auth', label: 'Auth', icon: 'shield', path: '/auth/users', order: 160 },
+    { id: 'auth-users', label: 'Users', icon: 'users', path: '/auth/users', order: 1, parent: 'auth' },
+    { id: 'auth-roles', label: 'Roles', icon: 'shield', path: '/auth/roles', order: 2, parent: 'auth' },
+    { id: 'auth-sessions', label: 'Sessions', icon: 'monitor', path: '/auth/sessions', order: 3, parent: 'auth' },
+    { id: 'auth-api-keys', label: 'API Keys', icon: 'key', path: '/auth/api-keys', order: 4, parent: 'auth' },
+    { id: 'auth-audit-log', label: 'Audit Log', icon: 'list', path: '/auth/audit-log', order: 5, parent: 'auth' },
+    { id: 'auth-settings', label: 'Settings', icon: 'settings', path: '/auth/settings', order: 6, parent: 'auth' },
+  ],
+  dashboardWidgets: [],
+  settings: [],
+  permissions: [
+    { resource: 'auth.user', actions: ['create', 'read', 'update', 'delete', 'export'], description: 'User management' },
+    { resource: 'auth.role', actions: ['create', 'read', 'update', 'delete'], description: 'Role management' },
+    { resource: 'auth.session', actions: ['read', 'delete'], description: 'Session management' },
+    { resource: 'auth.apiKey', actions: ['create', 'read', 'delete'], description: 'API key management' },
+    { resource: 'auth.auditLog', actions: ['read', 'export'], description: 'Audit log access' },
+    { resource: 'auth.settings', actions: ['read', 'update'], description: 'Auth settings management' },
+  ],
+  workflows: [],
+  importTypes: [],
+  exportTypes: [
+    { id: 'auth-users', label: 'Export Users', collection: 'auth/user', defaultFields: ['username', 'email', 'displayName', 'status', 'department', 'title'] },
+    { id: 'auth-audit-log', label: 'Export Audit Log', collection: 'auth/auditLog', defaultFields: ['timestamp', 'username', 'action', 'resource', 'severity'] },
+  ],
+  hooks: [],
+};

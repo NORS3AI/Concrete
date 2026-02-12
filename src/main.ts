@@ -48,6 +48,11 @@ import { dashboardManifest } from './modules/dashboard/manifest';
 import { estimatingManifest } from './modules/estimating/manifest';
 import { docManifest } from './modules/doc/manifest';
 import { importExportManifest } from './modules/import-export/manifest';
+import { authManifest } from './modules/auth/manifest';
+import { tenantManifest } from './modules/tenant/manifest';
+import { projectManifest } from './modules/project/manifest';
+import { changeOrderManifest } from './modules/change-order/manifest';
+import { serviceMgmtManifest } from './modules/service-mgmt/manifest';
 
 // Global app instance
 export interface ConcreteApp {
@@ -127,6 +132,11 @@ async function boot(): Promise<void> {
     modules.register(estimatingManifest);
     modules.register(docManifest);
     modules.register(importExportManifest);
+    modules.register(authManifest);
+    modules.register(tenantManifest);
+    modules.register(projectManifest);
+    modules.register(changeOrderManifest);
+    modules.register(serviceMgmtManifest);
 
     // 8. Router
     const router = new Router(events, modules, permissions);
