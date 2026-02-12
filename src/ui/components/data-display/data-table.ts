@@ -3,6 +3,8 @@
  * Full-featured data table with sorting, filtering, pagination, and row selection.
  */
 
+import { applySorting } from '../../../core/store/query-utils';
+
 export interface DataTableColumn<T> {
   key: string;
   label: string;
@@ -357,19 +359,7 @@ export class DataTable<T extends Record<string, unknown>> {
 
   private sortData(data: T[]): T[] {
     if (!this.sortKey) return data;
-    const key = this.sortKey;
-    const dir = this.sortDir === 'asc' ? 1 : -1;
-    return [...data].sort((a, b) => {
-      const aVal = a[key];
-      const bVal = b[key];
-      if (aVal == null && bVal == null) return 0;
-      if (aVal == null) return dir;
-      if (bVal == null) return -dir;
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return (aVal - bVal) * dir;
-      }
-      return String(aVal).localeCompare(String(bVal)) * dir;
-    });
+    return applySorting(data, [{ field: this.sortKey, direction: this.sortDir }]) as T[];
   }
 
   private filterData(data: T[]): T[] {

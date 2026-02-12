@@ -19,7 +19,13 @@ export class ConfigManager {
   async load(): Promise<void> {
     const stored = localStorage.getItem(this.storageKey);
     if (stored) {
-      this.config = JSON.parse(stored) as Record<string, unknown>;
+      try {
+        this.config = JSON.parse(stored) as Record<string, unknown>;
+      } catch {
+        // Corrupted config — reset to defaults
+        this.config = this.getDefaults();
+        this.persist();
+      }
     } else {
       this.config = this.getDefaults();
     }

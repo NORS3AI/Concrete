@@ -15,6 +15,7 @@ import type {
   PdfTemplate,
 } from '../types/reporting';
 import type { DataAdapter, QueryFilter, QueryOptions } from '../store/adapter';
+import { applySorting } from '../store/query-utils';
 
 // ---------------------------------------------------------------------------
 // ReportEngine
@@ -311,42 +312,17 @@ export class ReportEngine {
   }
 
   private sortData(data: Record<string, unknown>[], sortBy: string[]): Record<string, unknown>[] {
-    return [...data].sort((a, b) => {
-      for (const field of sortBy) {
-        const desc = field.startsWith('-');
-        const key = desc ? field.slice(1) : field;
-        const aVal = a[key];
-        const bVal = b[key];
-
-        let cmp = 0;
-        if (aVal == null && bVal == null) cmp = 0;
-        else if (aVal == null) cmp = -1;
-        else if (bVal == null) cmp = 1;
-        else if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
-        else if (typeof aVal === 'string' && typeof bVal === 'string') cmp = aVal.localeCompare(bVal);
-        else cmp = String(aVal).localeCompare(String(bVal));
-
-        if (desc) cmp = -cmp;
-        if (cmp !== 0) return cmp;
+    const orderBy = sortBy.map((field) => {
+      if (field.startsWith('-')) {
+        return { field: field.slice(1), direction: 'desc' as const };
       }
-      return 0;
+      return { field, direction: 'asc' as const };
     });
+    return applySorting(data, orderBy);
   }
 
   private sortByGroupKeys(data: Record<string, unknown>[], groupBy: string[]): Record<string, unknown>[] {
-    return [...data].sort((a, b) => {
-      for (const field of groupBy) {
-        const aVal = a[field];
-        const bVal = b[field];
-        let cmp = 0;
-        if (aVal == null && bVal == null) cmp = 0;
-        else if (aVal == null) cmp = -1;
-        else if (bVal == null) cmp = 1;
-        else cmp = String(aVal).localeCompare(String(bVal));
-        if (cmp !== 0) return cmp;
-      }
-      return 0;
-    });
+    return applySorting(data, groupBy.map((field) => ({ field, direction: 'asc' as const })));
   }
 
   private getGroupKeys(data: Record<string, unknown>[], groupBy: string[]): string[] {
