@@ -1,0 +1,204 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Concrete Design Tokens
+ * Dark theme default, light theme via .light class on <html>
+ */
+:root {
+  /* Surface colors */
+  --surface: #0f172a;
+  --surface-raised: #1e293b;
+  --surface-overlay: #334155;
+  --surface-sunken: #0a0f1a;
+
+  /* Accent */
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-muted: #1e3a5f;
+  --accent-rgb: 59, 130, 246;
+
+  /* Semantic */
+  --success: #22c55e;
+  --success-muted: #14532d;
+  --warning: #f59e0b;
+  --warning-muted: #78350f;
+  --danger: #ef4444;
+  --danger-muted: #7f1d1d;
+  --info: #06b6d4;
+  --info-muted: #164e63;
+
+  /* Text */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-inverse: #0f172a;
+
+  /* Borders */
+  --border: #334155;
+  --border-hover: #475569;
+
+  /* Misc */
+  --ring: var(--accent);
+  --radius: 0.5rem;
+  --transition: 150ms ease;
+}
+
+.light {
+  --surface: #ffffff;
+  --surface-raised: #f8fafc;
+  --surface-overlay: #f1f5f9;
+  --surface-sunken: #e2e8f0;
+
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-muted: #dbeafe;
+  --accent-rgb: 37, 99, 235;
+
+  --success: #16a34a;
+  --success-muted: #dcfce7;
+  --warning: #d97706;
+  --warning-muted: #fef3c7;
+  --danger: #dc2626;
+  --danger-muted: #fee2e2;
+  --info: #0891b2;
+  --info-muted: #cffafe;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-inverse: #f1f5f9;
+
+  --border: #e2e8f0;
+  --border-hover: #cbd5e1;
+}
+
+@layer base {
+  html {
+    @apply antialiased;
+    color: var(--text-primary);
+    background-color: var(--surface);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    @apply m-0 min-h-screen;
+  }
+
+  /* Focus rings */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2;
+    outline-color: var(--ring);
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--surface-sunken);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    @apply rounded;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--border-hover);
+  }
+}
+
+@layer components {
+  /* Common component classes used across all modules */
+  .card {
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    @apply rounded-lg p-4;
+  }
+
+  .card-header {
+    color: var(--text-secondary);
+    @apply text-xs font-semibold uppercase tracking-wider mb-3;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors;
+    @apply focus-visible:outline-2 focus-visible:outline-offset-2;
+    @apply disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-primary {
+    @apply btn;
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover {
+    background: var(--accent-hover);
+  }
+
+  .btn-secondary {
+    @apply btn;
+    background: var(--surface-overlay);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover {
+    background: var(--border);
+  }
+
+  .btn-danger {
+    @apply btn;
+    background: var(--danger);
+    color: white;
+  }
+  .btn-danger:hover {
+    background: var(--danger-muted);
+  }
+
+  .btn-ghost {
+    @apply btn;
+    background: transparent;
+    color: var(--text-secondary);
+  }
+  .btn-ghost:hover {
+    background: var(--surface-overlay);
+    color: var(--text-primary);
+  }
+
+  .input {
+    @apply w-full rounded-md px-3 py-2 text-sm;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+  }
+  .input:focus {
+    border-color: var(--accent);
+    @apply outline-none ring-1;
+    ring-color: var(--accent);
+  }
+  .input::placeholder {
+    color: var(--text-muted);
+  }
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

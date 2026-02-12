@@ -1,5 +1,8 @@
 # Concrete - Financial Consolidation Dashboard
 
+**Repo:** https://github.com/NORS3AI/Concrete
+**Live:** https://nors3ai.github.io/Concrete/
+
 A comprehensive, client-side financial consolidation dashboard for managing multi-entity organizations with 500+ subsidiaries. Built as a static web app deployable on GitHub Pages.
 
 ## Quick Start

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Concrete - Financial Consolidation Dashboard</title>
+  <link rel="stylesheet" href="css/dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SETUP WIZARD (first-time onboarding)       -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="setup-wizard" class="wizard-overlay">
+    <div class="wizard-card">
+      <div class="wizard-header">
+        <h1>Concrete</h1>
+        <p class="wizard-subtitle">Financial Consolidation Dashboard</p>
+      </div>
+
+      <!-- Step 1: Welcome -->
+      <div class="wizard-step" data-step="1">
+        <h2>Welcome</h2>
+        <p>Set up your financial consolidation environment. Choose the configuration that best fits your organization.</p>
+        <div class="wizard-options">
+          <button class="wizard-option" data-mode="single">
+            <span class="option-icon">&#9632;</span>
+            <strong>Option A: Single Entity</strong>
+            <span class="option-desc">Small business with one company. Basic P&L, cash flow, and balance sheet tracking.</span>
+          </button>
+          <button class="wizard-option" data-mode="multi">
+            <span class="option-icon">&#9632;&#9632;</span>
+            <strong>Option B: Multi-Entity</strong>
+            <span class="option-desc">Holding company or group with subsidiaries. Consolidation, intercompany elimination, hierarchy.</span>
+          </button>
+          <button class="wizard-option selected" data-mode="full">
+            <span class="option-icon">&#9632;&#9632;&#9632;</span>
+            <strong>Option C: Full Suite</strong>
+            <span class="option-desc">All-encompassing for Financial Controller, CFO, Accountant &amp; Bookkeeper. Every feature enabled.</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Organization Details -->
+      <div class="wizard-step hidden" data-step="2">
+        <h2>Organization Details</h2>
+        <div class="form-group">
+          <label>Organization / Holding Company Name</label>
+          <input type="text" id="wizard-org-name" placeholder="e.g. Acme Holdings Group">
+        </div>
+        <div class="form-group">
+          <label>Base Currency</label>
+          <select id="wizard-currency">
+            <option value="USD">USD - US Dollar</option>
+            <option value="EUR">EUR - Euro</option>
+            <option value="GBP">GBP - British Pound</option>
+            <option value="CAD">CAD - Canadian Dollar</option>
+            <option value="AUD">AUD - Australian Dollar</option>
+            <option value="JPY">JPY - Japanese Yen</option>
+            <option value="CHF">CHF - Swiss Franc</option>
+            <option value="CNY">CNY - Chinese Yuan</option>
+            <option value="INR">INR - Indian Rupee</option>
+            <option value="BRL">BRL - Brazilian Real</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fiscal Year Start Month</label>
+          <select id="wizard-fiscal">
+            <option value="1">January</option>
+            <option value="2">February</option>
+            <option value="3">March</option>
+            <option value="4">April</option>
+            <option value="7">July</option>
+            <option value="10">October</option>
+          </select>
+        </div>
+        <div class="form-group" id="wizard-entities-group">
+          <label>Initial Entities (one per line, or import CSV later)</label>
+          <textarea id="wizard-entities" rows="5" placeholder="Entity A&#10;Entity B&#10;Entity C"></textarea>
+        </div>
+      </div>
+
+      <!-- Step 3: Confirmation -->
+      <div class="wizard-step hidden" data-step="3">
+        <h2>Ready to Go</h2>
+        <div id="wizard-summary"></div>
+        <p>You can always change these settings later. Start by importing data or adding entities manually.</p>
+      </div>
+
+      <div class="wizard-nav">
+        <button id="wizard-back" class="btn-secondary hidden">Back</button>
+        <button id="wizard-next" class="btn-primary">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- MAIN APPLICATION                            -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="app" class="hidden">
+
+    <!-- Top Navigation Bar -->
+    <nav id="top-nav">
+      <div class="nav-left">
+        <div class="logo" id="nav-logo">Concrete</div>
+        <div class="nav-tabs" id="nav-tabs">
+          <button class="nav-tab active" data-tab="executive">Executive Summary</button>
+          <button class="nav-tab" data-tab="cashflow">Cash Flow</button>
+          <button class="nav-tab" data-tab="pnl">P&amp;L</button>
+          <button class="nav-tab" data-tab="balance">Balance Sheet</button>
+          <button class="nav-tab" data-tab="working-capital">Working Capital</button>
+          <button class="nav-tab" data-tab="entities">Entities</button>
+          <button class="nav-tab" data-tab="import">Import</button>
+          <button class="nav-tab" data-tab="settings">Settings</button>
+        </div>
+      </div>
+      <div class="nav-right">
+        <select id="entity-filter" title="Filter by entity">
+          <option value="__all__">All Entities (Consolidated)</option>
+        </select>
+        <select id="period-filter" title="Filter by period">
+          <option value="mtd">Month to Date</option>
+          <option value="qtd">Quarter to Date</option>
+          <option value="ytd" selected>Year to Date</option>
+          <option value="last12">Last 12 Months</option>
+          <option value="all">All Time</option>
+        </select>
+        <button id="export-btn" class="btn-secondary" title="Export data">Export</button>
+        <button id="alerts-toggle" class="btn-icon" title="Alerts">
+          <span id="alerts-badge">0</span> Alerts
+        </button>
+      </div>
+    </nav>
+
+    <!-- Alerts Sidebar -->
+    <aside id="alerts-panel" class="hidden">
+      <div class="alerts-header">
+        <h3>Alerts &amp; Exceptions</h3>
+        <button id="alerts-close">&times;</button>
+      </div>
+      <div id="alerts-list"></div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="tab-content">
+      <!-- Tabs rendered dynamically by dashboard.js -->
+    </main>
+
+    <!-- Export Modal -->
+    <div id="export-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Export Data</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Export Format</label>
+            <select id="export-format">
+              <option value="csv">CSV (Comma Separated)</option>
+              <option value="json">JSON (Full Backup)</option>
+              <option value="tsv">TSV (Tab Separated)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Data to Export</label>
+            <div class="checkbox-group">
+              <label><input type="checkbox" value="transactions" checked> Transactions</label>
+              <label><input type="checkbox" value="entities" checked> Entities</label>
+              <label><input type="checkbox" value="customers" checked> Customers</label>
+              <label><input type="checkbox" value="employees" checked> Employees</label>
+              <label><input type="checkbox" value="debts" checked> Debts</label>
+              <label><input type="checkbox" value="budgets" checked> Budgets</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Entity Filter</label>
+            <select id="export-entity-filter">
+              <option value="__all__">All Entities</option>
+            </select>
+          </div>
+          <button id="export-execute" class="btn-primary">Download Export</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import Modal / Wizard -->
+    <div id="import-modal" class="modal hidden">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h3>CSV Import Wizard</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="import-wizard-body">
+          <!-- Rendered by import-wizard.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Entity Drill-Down Modal -->
+    <div id="drilldown-modal" class="modal hidden">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h3 id="drilldown-title">Entity Details</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="drilldown-body">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SCRIPTS                                     -->
+  <!-- ═══════════════════════════════════════════ -->
+  <script src="js/store.js"></script>
+  <script src="js/kpi-engine.js"></script>
+  <script src="js/import-wizard.js"></script>
+  <script src="js/entity-manager.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

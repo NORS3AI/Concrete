@@ -1,0 +1,40 @@
+{
+  "name": "concrete",
+  "version": "0.0.1",
+  "description": "Construction Financial & Operations Platform",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:static": "VITE_BUILD_TARGET=static vite build",
+    "build:cloudflare": "VITE_BUILD_TARGET=cloudflare vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .ts,.tsx",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "analyze": "vite-bundle-visualizer"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0",
+    "date-fns": "^3.6.0",
+    "idb": "^8.0.0",
+    "jspdf": "^2.5.1",
+    "papaparse": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/papaparse": "^5.3.15",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "autoprefixer": "^10.4.19",
+    "eslint": "^8.57.0",
+    "postcss": "^8.4.38",
+    "prettier": "^3.2.5",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.4.0",
+    "vite": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
