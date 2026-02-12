@@ -35,6 +35,19 @@ import { ServiceWorkerManager } from '@core/service-worker';
 import { AppShell } from '@ui/components/layout/app-shell';
 import { glManifest } from './modules/gl/manifest';
 import { entityManifest } from './modules/entity/manifest';
+import { jobManifest } from './modules/job/manifest';
+import { apManifest } from './modules/ap/manifest';
+import { arManifest } from './modules/ar/manifest';
+import { payrollManifest } from './modules/payroll/manifest';
+import { unionManifest } from './modules/union/manifest';
+import { equipManifest } from './modules/equip/manifest';
+import { subManifest } from './modules/sub/manifest';
+import { poManifest } from './modules/po/manifest';
+import { reportsManifest } from './modules/reports/manifest';
+import { dashboardManifest } from './modules/dashboard/manifest';
+import { estimatingManifest } from './modules/estimating/manifest';
+import { docManifest } from './modules/doc/manifest';
+import { importExportManifest } from './modules/import-export/manifest';
 
 // Global app instance
 export interface ConcreteApp {
@@ -101,6 +114,19 @@ async function boot(): Promise<void> {
     // 7. Register modules
     modules.register(glManifest);
     modules.register(entityManifest);
+    modules.register(jobManifest);
+    modules.register(apManifest);
+    modules.register(arManifest);
+    modules.register(payrollManifest);
+    modules.register(unionManifest);
+    modules.register(equipManifest);
+    modules.register(subManifest);
+    modules.register(poManifest);
+    modules.register(reportsManifest);
+    modules.register(dashboardManifest);
+    modules.register(estimatingManifest);
+    modules.register(docManifest);
+    modules.register(importExportManifest);
 
     // 8. Router
     const router = new Router(events, modules, permissions);

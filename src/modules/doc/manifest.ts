@@ -1,0 +1,96 @@
+import type { ModuleManifest } from '../../core/types/module';
+
+export const docManifest: ModuleManifest = {
+  id: 'concrete.doc',
+  name: 'Document Management',
+  description: 'Document storage, version control, templates, transmittals, photo logs, drawing logs, search, and expiration tracking',
+  version: '1.0.0',
+  phase: 14,
+  dependencies: ['concrete.gl', 'concrete.entity', 'concrete.job'],
+  collections: [
+    'doc/document', 'doc/revision', 'doc/template', 'doc/transmittal', 'doc/photo',
+  ],
+  routes: [
+    { path: '/doc/documents', component: () => import('./views/document-list'), title: 'Documents', icon: 'file-text' },
+    { path: '/doc/documents/new', component: () => import('./views/document-form'), title: 'New Document', icon: 'plus' },
+    { path: '/doc/documents/:id', component: () => import('./views/document-form'), title: 'Edit Document', icon: 'edit' },
+    { path: '/doc/documents/:id/revisions', component: () => import('./views/revisions'), title: 'Revisions', icon: 'git-branch' },
+    { path: '/doc/templates', component: () => import('./views/templates'), title: 'Templates', icon: 'copy' },
+    { path: '/doc/transmittals', component: () => import('./views/transmittals'), title: 'Transmittals', icon: 'send' },
+    { path: '/doc/photos', component: () => import('./views/photo-log'), title: 'Photo Log', icon: 'camera' },
+    { path: '/doc/drawings', component: () => import('./views/drawing-log'), title: 'Drawing Log', icon: 'layout' },
+    { path: '/doc/search', component: () => import('./views/search'), title: 'Document Search', icon: 'search' },
+  ],
+  navItems: [
+    { id: 'doc', label: 'Documents', icon: 'file-text', path: '/doc/documents', order: 140 },
+    { id: 'doc-documents', label: 'All Documents', icon: 'file-text', path: '/doc/documents', order: 1, parent: 'doc' },
+    { id: 'doc-templates', label: 'Templates', icon: 'copy', path: '/doc/templates', order: 2, parent: 'doc' },
+    { id: 'doc-transmittals', label: 'Transmittals', icon: 'send', path: '/doc/transmittals', order: 3, parent: 'doc' },
+    { id: 'doc-photos', label: 'Photo Log', icon: 'camera', path: '/doc/photos', order: 4, parent: 'doc' },
+    { id: 'doc-drawings', label: 'Drawing Log', icon: 'layout', path: '/doc/drawings', order: 5, parent: 'doc' },
+    { id: 'doc-search', label: 'Search', icon: 'search', path: '/doc/search', order: 6, parent: 'doc' },
+  ],
+  dashboardWidgets: [],
+  settings: [],
+  permissions: [
+    { resource: 'doc.document', actions: ['create', 'read', 'update', 'delete', 'export'], description: 'Document management' },
+    { resource: 'doc.revision', actions: ['create', 'read'], description: 'Revision history' },
+    { resource: 'doc.template', actions: ['create', 'read', 'update', 'delete'], description: 'Template management' },
+    { resource: 'doc.transmittal', actions: ['create', 'read', 'update', 'send', 'acknowledge'], description: 'Transmittal management' },
+    { resource: 'doc.photo', actions: ['create', 'read', 'update', 'delete'], description: 'Photo log management' },
+    { resource: 'doc.search', actions: ['read'], description: 'Document search' },
+  ],
+  workflows: [],
+  importTypes: [
+    {
+      id: 'doc-documents',
+      label: 'Import Document Metadata',
+      collection: 'doc/document',
+      fields: [
+        { name: 'title', type: 'string', required: true, label: 'Title' },
+        { name: 'category', type: 'string', required: true, label: 'Category' },
+        { name: 'description', type: 'string', label: 'Description' },
+        { name: 'fileName', type: 'string', label: 'File Name' },
+        { name: 'jobId', type: 'string', label: 'Job ID' },
+        { name: 'entityId', type: 'string', label: 'Entity ID' },
+        { name: 'vendorId', type: 'string', label: 'Vendor ID' },
+        { name: 'employeeId', type: 'string', label: 'Employee ID' },
+        { name: 'tags', type: 'string', label: 'Tags (comma-separated)' },
+        { name: 'expirationDate', type: 'string', label: 'Expiration Date' },
+        { name: 'status', type: 'string', label: 'Status' },
+      ],
+      autoDetectHeaders: true,
+    },
+  ],
+  exportTypes: [
+    {
+      id: 'doc-index',
+      label: 'Export Document Index',
+      collection: 'doc/document',
+      defaultFields: [
+        'title', 'category', 'description', 'fileName', 'fileSize',
+        'jobId', 'entityId', 'vendorId', 'status', 'expirationDate',
+        'uploadedBy', 'uploadedAt',
+      ],
+    },
+    {
+      id: 'doc-transmittals',
+      label: 'Export Transmittals',
+      collection: 'doc/transmittal',
+      defaultFields: [
+        'number', 'jobId', 'toName', 'toCompany', 'fromName',
+        'date', 'subject', 'status',
+      ],
+    },
+    {
+      id: 'doc-photo-log',
+      label: 'Export Photo Log',
+      collection: 'doc/photo',
+      defaultFields: [
+        'documentId', 'jobId', 'dateTaken', 'location',
+        'description', 'latitude', 'longitude', 'takenBy',
+      ],
+    },
+  ],
+  hooks: [],
+};

@@ -1,0 +1,88 @@
+import type { ModuleManifest } from '../../core/types/module';
+
+export const poManifest: ModuleManifest = {
+  id: 'concrete.po',
+  name: 'Purchase Orders & Procurement',
+  description: 'Purchase order creation, approval workflow, receipt tracking, three-way matching, change orders, buyout tracking, and vendor price comparison',
+  version: '1.0.0',
+  phase: 10,
+  dependencies: ['concrete.gl', 'concrete.entity', 'concrete.job', 'concrete.ap'],
+  collections: [
+    'po/purchaseOrder', 'po/poLine', 'po/receipt',
+    'po/receiptLine', 'po/amendment',
+  ],
+  routes: [
+    { path: '/po/list', component: () => import('./views/po-list'), title: 'Purchase Orders', icon: 'shopping-cart' },
+    { path: '/po/new', component: () => import('./views/po-form'), title: 'New Purchase Order', icon: 'plus' },
+    { path: '/po/:id', component: () => import('./views/po-form'), title: 'Edit Purchase Order', icon: 'edit' },
+    { path: '/po/receipts', component: () => import('./views/receipts'), title: 'Receipts', icon: 'package' },
+    { path: '/po/amendments', component: () => import('./views/amendments'), title: 'Amendments', icon: 'file-plus' },
+    { path: '/po/matching', component: () => import('./views/matching'), title: 'Three-Way Matching', icon: 'check-square' },
+    { path: '/po/open', component: () => import('./views/open-pos'), title: 'Open POs', icon: 'clipboard' },
+    { path: '/po/buyout', component: () => import('./views/buyout'), title: 'Buyout Tracking', icon: 'trending-down' },
+    { path: '/po/history', component: () => import('./views/po-history'), title: 'PO History', icon: 'archive' },
+  ],
+  navItems: [
+    { id: 'po', label: 'PO', icon: 'shopping-cart', path: '/po/list', order: 100 },
+    { id: 'po-list', label: 'Purchase Orders', icon: 'shopping-cart', path: '/po/list', order: 1, parent: 'po' },
+    { id: 'po-receipts', label: 'Receipts', icon: 'package', path: '/po/receipts', order: 2, parent: 'po' },
+    { id: 'po-amendments', label: 'Amendments', icon: 'file-plus', path: '/po/amendments', order: 3, parent: 'po' },
+    { id: 'po-matching', label: 'Matching', icon: 'check-square', path: '/po/matching', order: 4, parent: 'po' },
+    { id: 'po-open', label: 'Open POs', icon: 'clipboard', path: '/po/open', order: 5, parent: 'po' },
+    { id: 'po-buyout', label: 'Buyout', icon: 'trending-down', path: '/po/buyout', order: 6, parent: 'po' },
+    { id: 'po-history', label: 'PO History', icon: 'archive', path: '/po/history', order: 7, parent: 'po' },
+  ],
+  dashboardWidgets: [],
+  settings: [],
+  permissions: [
+    { resource: 'po.purchaseOrder', actions: ['create', 'read', 'update', 'delete', 'approve', 'cancel', 'close', 'export'], description: 'Purchase order management' },
+    { resource: 'po.receipt', actions: ['create', 'read', 'export'], description: 'Material receipt tracking' },
+    { resource: 'po.amendment', actions: ['create', 'read', 'approve', 'reject', 'export'], description: 'PO change order management' },
+    { resource: 'po.report', actions: ['read', 'export'], description: 'PO reports (open POs, buyout, history, matching)' },
+  ],
+  workflows: [],
+  importTypes: [
+    {
+      id: 'po-purchase-orders',
+      label: 'Import Purchase Orders',
+      collection: 'po/purchaseOrder',
+      fields: [
+        { name: 'poNumber', type: 'string', required: true, label: 'PO Number' },
+        { name: 'vendorName', type: 'string', required: true, label: 'Vendor Name' },
+        { name: 'jobNumber', type: 'string', label: 'Job Number' },
+        { name: 'type', type: 'enum', enum: ['standard', 'blanket', 'service'], required: true, label: 'PO Type' },
+        { name: 'description', type: 'string', label: 'Description' },
+        { name: 'amount', type: 'number', required: true, label: 'Amount' },
+        { name: 'taxAmount', type: 'number', label: 'Tax Amount' },
+        { name: 'shippingAmount', type: 'number', label: 'Shipping Amount' },
+        { name: 'status', type: 'enum', enum: ['draft', 'pending_approval', 'approved', 'partial_receipt', 'received', 'closed', 'cancelled'], label: 'Status' },
+        { name: 'terms', type: 'string', label: 'Terms' },
+        { name: 'issuedDate', type: 'date', label: 'Issued Date' },
+        { name: 'expectedDate', type: 'date', label: 'Expected Date' },
+      ],
+      autoDetectHeaders: true,
+    },
+  ],
+  exportTypes: [
+    {
+      id: 'po-open',
+      label: 'Export Open POs',
+      collection: 'po/purchaseOrder',
+      defaultFields: [
+        'poNumber', 'vendorId', 'jobId', 'type', 'description', 'amount',
+        'totalAmount', 'status', 'issuedDate', 'expectedDate',
+      ],
+    },
+    {
+      id: 'po-all',
+      label: 'Export All POs',
+      collection: 'po/purchaseOrder',
+      defaultFields: [
+        'poNumber', 'vendorId', 'jobId', 'entityId', 'type', 'description',
+        'amount', 'taxAmount', 'shippingAmount', 'totalAmount', 'status',
+        'terms', 'shipTo', 'approvedBy', 'approvedAt', 'issuedDate', 'expectedDate',
+      ],
+    },
+  ],
+  hooks: [],
+};
