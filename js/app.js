@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   FinConsol - Application Initialization
+   Concrete - Application Initialization
    Setup wizard, boot sequence
    ═══════════════════════════════════════════════════ */
 

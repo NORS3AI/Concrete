@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   FinConsol - CSV Import Wizard
+   Concrete - CSV Import Wizard
    Column mapping, incremental updates, templates
    ═══════════════════════════════════════════════════ */
 

@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   FinConsol - Entity Manager
+   Concrete - Entity Manager
    Hierarchy, CRUD, drill-down support
    ═══════════════════════════════════════════════════ */
 

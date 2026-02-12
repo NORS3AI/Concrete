@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   FinConsol - Dashboard Renderer
+   Concrete - Dashboard Renderer
    All tab content: Executive, Cash Flow, P&L,
    Balance Sheet, Working Capital, Settings
    ═══════════════════════════════════════════════════ */
@@ -145,7 +145,7 @@ const Dashboard = (() => {
     container.innerHTML = `
       <div class="tab-title">
         Executive Summary
-        <span class="subtitle">${config.orgName || 'FinConsol'} &bull; ${currentPeriod.toUpperCase()}</span>
+        <span class="subtitle">${config.orgName || 'Concrete'} &bull; ${currentPeriod.toUpperCase()}</span>
       </div>
 
       <div class="kpi-row">

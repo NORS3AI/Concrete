@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   FinConsol - Export Module
+   Concrete - Export Module
    CSV, TSV, JSON export with entity filtering
    ═══════════════════════════════════════════════════ */
 
@@ -53,7 +53,7 @@ const ExportModule = (() => {
       ...data
     };
     const blob = new Blob([JSON.stringify(fullExport, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, `finConsol-export-${dateStamp()}.json`);
+    downloadBlob(blob, `concrete-export-${dateStamp()}.json`);
   }
 
   function downloadCSVBundle(data, delimiter) {
@@ -64,7 +64,7 @@ const ExportModule = (() => {
     if (keys.length === 1) {
       const csv = arrayToCSV(data[keys[0]], delimiter);
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      downloadBlob(blob, `finConsol-${keys[0]}-${dateStamp()}.${ext}`);
+      downloadBlob(blob, `concrete-${keys[0]}-${dateStamp()}.${ext}`);
       return;
     }
 
@@ -73,7 +73,7 @@ const ExportModule = (() => {
       if (data[key] && data[key].length > 0) {
         const csv = arrayToCSV(data[key], delimiter);
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        downloadBlob(blob, `finConsol-${key}-${dateStamp()}.${ext}`);
+        downloadBlob(blob, `concrete-${key}-${dateStamp()}.${ext}`);
       }
     });
   }
@@ -124,7 +124,7 @@ const ExportModule = (() => {
   function exportFullBackup() {
     const data = Store.exportAll();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, `finConsol-backup-${dateStamp()}.json`);
+    downloadBlob(blob, `concrete-backup-${dateStamp()}.json`);
   }
 
   // Full backup import
@@ -172,7 +172,7 @@ const ExportModule = (() => {
 
     const csv = arrayToCSV(rows);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    downloadBlob(blob, `finConsol-kpi-summary-${dateStamp()}.csv`);
+    downloadBlob(blob, `concrete-kpi-summary-${dateStamp()}.csv`);
   }
 
   // Export entity comparison as CSV
@@ -195,7 +195,7 @@ const ExportModule = (() => {
 
     const csv = arrayToCSV(rows);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    downloadBlob(blob, `finConsol-entity-comparison-${dateStamp()}.csv`);
+    downloadBlob(blob, `concrete-entity-comparison-${dateStamp()}.csv`);
   }
 
   function initExportModal() {

@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   FinConsol - KPI Calculation Engine
+   Concrete - KPI Calculation Engine
    Real-time financial metric computation
    ═══════════════════════════════════════════════════ */
 

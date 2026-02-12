@@ -1,4 +1,4 @@
-# FinConsol - Financial Consolidation Dashboard
+# Concrete - Financial Consolidation Dashboard
 
 A comprehensive, client-side financial consolidation dashboard for managing multi-entity organizations with 500+ subsidiaries. Built as a static web app deployable on GitHub Pages.
 
@@ -30,7 +30,7 @@ js/
 
 ## Data Model
 
-All data lives in browser `localStorage` under key `finConsol`. Structured as:
+All data lives in browser `localStorage` under key `concrete`. Structured as:
 
 | Collection     | Description                                    |
 |---------------|------------------------------------------------|

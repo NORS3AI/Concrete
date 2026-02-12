@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════
-   FinConsol - Data Store
+   Concrete - Data Store
    localStorage-backed data management layer
    ═══════════════════════════════════════════════════ */
 
 const Store = (() => {
-  const STORAGE_KEY = 'finConsol';
+  const STORAGE_KEY = 'concrete';
   const VERSION = '1.0.0';
 
   // Default schema

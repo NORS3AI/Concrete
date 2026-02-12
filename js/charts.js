@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   FinConsol - Chart Rendering Module
+   Concrete - Chart Rendering Module
    Wrapper around Chart.js for consistent styling
    ═══════════════════════════════════════════════════ */
 
