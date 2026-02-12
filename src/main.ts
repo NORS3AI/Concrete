@@ -36,6 +36,7 @@ import { AppShell } from '@ui/components/layout/app-shell';
 import { glManifest } from './modules/gl/manifest';
 import { entityManifest } from './modules/entity/manifest';
 import { jobManifest } from './modules/job/manifest';
+import { apManifest } from './modules/ap/manifest';
 
 // Global app instance
 export interface ConcreteApp {
@@ -103,6 +104,7 @@ async function boot(): Promise<void> {
     modules.register(glManifest);
     modules.register(entityManifest);
     modules.register(jobManifest);
+    modules.register(apManifest);
 
     // 8. Router
     const router = new Router(events, modules, permissions);
