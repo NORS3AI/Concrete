@@ -1,0 +1,19 @@
+name,code,status,contactName,contactEmail,contactPhone,address,city,state,zip,creditLimit,terms,entityId,ytdBillings,ytdPayments
+Arizona Public Service (APS),C-001,active,Rachel Dunn,rdunn@aps.com,602-555-7001,400 N 5th St,Phoenix,AZ,85004,0,Net 30,SGE-SOL-W,42000000,38500000
+Salt River Project (SRP),C-002,active,Brian Yamamoto,byamamoto@srpnet.com,602-555-7010,1521 N Project Dr,Tempe,AZ,85281,0,Net 30,SGE-SOL-W,28000000,26200000
+Tucson Electric Power,C-003,active,Maria Estrada,mestrada@tep.com,520-555-7020,88 E Broadway Blvd,Tucson,AZ,85701,0,Net 30,SGE-SOL-W,18500000,17000000
+NV Energy,C-004,active,Scott Peterson,speterson@nvenergy.com,702-555-7030,6226 W Sahara Ave,Las Vegas,NV,89146,0,Net 30,SGE-SOL-W,35000000,32000000
+Southern California Edison,C-005,active,Linda Chang,lchang@sce.com,626-555-7040,2244 Walnut Grove Ave,Rosemead,CA,91770,0,Net 30,SGE-SOL-W,52000000,48000000
+ERCOT — Texas Grid,C-006,active,Jake Morrison,jmorrison@ercot.com,512-555-7050,2705 West Lake Dr,Taylor,TX,76574,0,Net 15,SGE-SOL-E,31000000,29500000
+Duke Energy Carolinas,C-007,active,Patricia Hayes,phayes@duke-energy.com,704-555-7060,526 S Church St,Charlotte,NC,28202,0,Net 30,SGE-SOL-E,22000000,20000000
+Florida Power & Light,C-008,active,Roberto Vasquez,rvasquez@fpl.com,561-555-7070,700 Universe Blvd,Juno Beach,FL,33408,0,Net 30,SGE-SOL-E,27500000,25000000
+Southwest Power Pool (SPP),C-009,active,Karen Little,klittle@spp.org,501-555-7080,201 Worthen Dr,Little Rock,AR,72223,0,Net 15,SGE-WIND,38000000,35500000
+MidContinent ISO (MISO),C-010,active,Thomas Greene,tgreene@misoenergy.org,317-555-7090,720 City Center Dr,Carmel,IN,46032,0,Net 15,SGE-WIND,45000000,42000000
+Alberta Electric System Operator,C-011,active,David MacKenzie,dmackenzie@aeso.ca,403-555-7100,2500 4th Ave SW,Calgary,AB,T2P 0K3,0,Net 30,SGE-CAN,15000000,13800000
+Ontario IESO,C-012,active,Michelle Tremblay,mtremblay@ieso.ca,416-555-7110,1600-120 Adelaide St W,Toronto,ON,M5H 1T1,0,Net 30,SGE-CAN,12000000,11000000
+CFE (Comision Federal de Electricidad),C-013,active,Alejandro Reyes,areyes@cfe.mx,+52-55-5555-7120,Av. Paseo de la Reforma 164,Mexico City,CDMX,06600,0,Net 45,SGE-MEX,19500000,17000000
+CENACE Mexico,C-014,active,Isabel Gutierrez,igutierrez@cenace.gob.mx,+52-55-5555-7130,Blvd. Adolfo Lopez Mateos 2600,Mexico City,CDMX,01090,0,Net 45,SGE-MEX,8500000,7200000
+Microsoft (Corporate PPA),C-015,active,Sarah Kim,skim@microsoft.com,425-555-7140,1 Microsoft Way,Redmond,WA,98052,0,Net 30,SGE-SOL-W,24000000,22500000
+Amazon Web Services (Corporate PPA),C-016,active,James Park,jpark@amazon.com,206-555-7150,410 Terry Ave N,Seattle,WA,98109,0,Net 30,SGE-WIND,32000000,30000000
+City of Los Angeles — LADWP,C-017,active,Carmen Ortiz,cortiz@ladwp.com,213-555-7160,111 N Hope St,Los Angeles,CA,90012,0,Net 30,SGE-SOL-W,18000000,16500000
+Walmart Inc (Corporate PPA),C-018,active,Tom Henderson,thenderson@walmart.com,479-555-7170,702 SW 8th St,Bentonville,AR,72716,0,Net 30,SGE-SOL-E,14500000,13200000

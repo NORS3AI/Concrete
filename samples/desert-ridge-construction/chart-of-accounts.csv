@@ -1,0 +1,52 @@
+number,name,type,normalBalance,parentId,description,isActive,depth,path,isSummary
+1000,Assets,asset,debit,,Top-level asset accounts,true,0,1000,true
+1010,Cash - Operating,asset,debit,1000,Primary operating checking account,true,1,1000/1010,false
+1020,Cash - Payroll,asset,debit,1000,Dedicated payroll checking account,true,1,1000/1020,false
+1030,Cash - Petty Cash,asset,debit,1000,Petty cash on hand,true,1,1000/1030,false
+1100,Accounts Receivable,asset,debit,1000,Trade receivables from customers,true,1,1000/1100,false
+1110,Retainage Receivable,asset,debit,1000,Retainage held by owners on progress billings,true,1,1000/1110,false
+1200,Inventory - Materials,asset,debit,1000,Construction materials in warehouse,true,1,1000/1200,false
+1300,Prepaid Insurance,asset,debit,1000,Prepaid general liability / workers comp / builders risk,true,1,1000/1300,false
+1310,Prepaid Bond Premiums,asset,debit,1000,Performance and payment bond premiums,true,1,1000/1310,false
+1400,Underbillings (CIP),asset,debit,1000,Costs in excess of billings — WIP asset,true,1,1000/1400,false
+1500,Fixed Assets,asset,debit,1000,Property and equipment,true,1,1000/1500,true
+1510,Vehicles,asset,debit,1500,Trucks / pickups / trailers,true,2,1000/1500/1510,false
+1520,Heavy Equipment,asset,debit,1500,Excavators / loaders / dozers / cranes,true,2,1000/1500/1520,false
+1530,Office Equipment,asset,debit,1500,Computers / furniture / copiers,true,2,1000/1500/1530,false
+1540,Leasehold Improvements,asset,debit,1500,Office buildout costs,true,2,1000/1500/1540,false
+1600,Accumulated Depreciation,asset,credit,1500,Contra asset — accumulated depreciation,true,2,1000/1500/1600,false
+2000,Liabilities,liability,credit,,Top-level liability accounts,true,0,2000,true
+2010,Accounts Payable,liability,credit,2000,Trade payables to vendors and subs,true,1,2000/2010,false
+2020,Retainage Payable,liability,credit,2000,Retainage held on subcontractor payments,true,1,2000/2020,false
+2030,Accrued Payroll,liability,credit,2000,Wages / salaries / taxes accrued but not paid,true,1,2000/2030,false
+2040,Accrued Benefits,liability,credit,2000,Health insurance / 401k / union fringes accrued,true,1,2000/2040,false
+2050,Sales Tax Payable,liability,credit,2000,Arizona TPT and NM GRT collected,true,1,2000/2050,false
+2060,Overbillings (CIP),liability,credit,2000,Billings in excess of costs — WIP liability,true,1,2000/2060,false
+2100,Notes Payable - Equipment,liability,credit,2000,Equipment loans and leases,true,1,2000/2100,false
+2200,Line of Credit,liability,credit,2000,Revolving credit facility,true,1,2000/2200,false
+3000,Equity,equity,credit,,Owner equity accounts,true,0,3000,true
+3010,Members Equity,equity,credit,3000,LLC member capital accounts,true,1,3000/3010,false
+3020,Retained Earnings,equity,credit,3000,Accumulated undistributed profits,true,1,3000/3020,false
+3030,Distributions,equity,debit,3000,Member draws and distributions,true,1,3000/3030,false
+4000,Revenue,revenue,credit,,Income accounts,true,0,4000,true
+4010,Contract Revenue,revenue,credit,4000,Revenue from construction contracts,true,1,4000/4010,false
+4020,Change Order Revenue,revenue,credit,4000,Revenue from approved change orders,true,1,4000/4020,false
+4030,T&M Revenue,revenue,credit,4000,Time and material billing revenue,true,1,4000/4030,false
+4040,Service Revenue,revenue,credit,4000,Maintenance and warranty service revenue,true,1,4000/4040,false
+4050,Equipment Rental Revenue,revenue,credit,4000,Internal and external equipment rental income,true,1,4000/4050,false
+5000,Cost of Revenue,expense,debit,,Direct job costs,true,0,5000,true
+5010,Direct Labor,expense,debit,5000,Field labor — wages and burden,true,1,5000/5010,false
+5020,Direct Materials,expense,debit,5000,Materials installed on jobs,true,1,5000/5020,false
+5030,Subcontractor Costs,expense,debit,5000,Subcontract payments,true,1,5000/5030,false
+5040,Equipment Costs,expense,debit,5000,Equipment usage charges to jobs,true,1,5000/5040,false
+5050,Other Direct Costs,expense,debit,5000,Permits / testing / surveys / bonds,true,1,5000/5050,false
+6000,Overhead Expenses,expense,debit,,General and administrative expenses,true,0,6000,true
+6010,Officer Salaries,expense,debit,6000,Owner and officer compensation,true,1,6000/6010,false
+6020,Office Salaries,expense,debit,6000,Administrative staff salaries,true,1,6000/6020,false
+6030,Rent,expense,debit,6000,Office and yard rent,true,1,6000/6030,false
+6040,Utilities,expense,debit,6000,Electric / gas / water / internet,true,1,6000/6040,false
+6050,Insurance - General,expense,debit,6000,General liability / umbrella / E&O,true,1,6000/6050,false
+6060,Vehicle Expense,expense,debit,6000,Fuel / maintenance / registration for non-job vehicles,true,1,6000/6060,false
+6070,Professional Fees,expense,debit,6000,Legal / accounting / consulting,true,1,6000/6070,false
+6080,Depreciation,expense,debit,6000,Depreciation expense,true,1,6000/6080,false
+6090,Bad Debt,expense,debit,6000,Uncollectible receivables,true,1,6000/6090,false

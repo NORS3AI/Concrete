@@ -1,0 +1,11 @@
+name,code,status,contactName,contactEmail,contactPhone,address,city,state,zip,creditLimit,terms,entityId,ytdBillings,ytdPayments
+Arizona Department of Transportation,C-001,active,Patricia Hernandez,phernandez@azdot.gov,602-555-8001,206 S 17th Ave,Phoenix,AZ,85007,0,Net 45,DRC-AZ,4250000,3800000
+City of Phoenix — Public Works,C-002,active,Mark Sullivan,msullivan@phoenix.gov,602-555-8010,200 W Washington St,Phoenix,AZ,85003,0,Net 30,DRC-AZ,2100000,1950000
+Maricopa County Facilities,C-003,active,Angela Torres,atorres@maricopa.gov,602-555-8020,301 W Jefferson St,Phoenix,AZ,85003,0,Net 30,DRC-AZ,3450000,3100000
+Scottsdale Unified School District,C-004,active,Brian Nguyen,bnguyen@susd.org,480-555-8030,3811 N 44th St,Scottsdale,AZ,85251,0,Net 30,DRC-AZ,1800000,1650000
+Pinnacle Development Group,C-005,active,Jennifer Walsh,jwalsh@pinnacledev.com,602-555-8040,2425 E Camelback Rd Suite 800,Phoenix,AZ,85016,500000,Net 30,DRC-AZ,6200000,5400000
+New Mexico Department of Transportation,C-006,active,Carlos Vigil,cvigil@nmdot.state.nm.us,505-555-8050,1120 Cerrillos Rd,Santa Fe,NM,87504,0,Net 45,DRC-NM-ABQ,3100000,2750000
+University of New Mexico,C-007,active,Lisa Montoya,lmontoya@unm.edu,505-555-8060,1 University of New Mexico,Albuquerque,NM,87131,0,Net 30,DRC-NM-ABQ,1950000,1800000
+City of Santa Fe — Capital Projects,C-008,active,Raymond Lujan,rlujan@santafenm.gov,505-555-8070,200 Lincoln Ave,Santa Fe,NM,87501,0,Net 30,DRC-NM-SF,2800000,2500000
+Presbyterian Healthcare Services,C-009,active,Amanda Richardson,arichardson@phs.org,505-555-8080,9521 San Mateo Blvd NE,Albuquerque,NM,87113,1000000,Net 30,DRC-NM-ABQ,4500000,4100000
+Horizon Hospitality Partners,C-010,active,Derek Foster,dfoster@horizonhospitality.com,480-555-8090,7014 E Camelback Rd,Scottsdale,AZ,85251,750000,Net 30,DRC-AZ,8500000,7200000

@@ -1,0 +1,63 @@
+number,name,type,normalBalance,parentId,description,isActive,depth,path,isSummary
+1000,Assets,asset,debit,,Top-level assets,true,0,1000,true
+1010,Cash - Operating,asset,debit,1000,Primary operating account — JPMorgan,true,1,1000/1010,false
+1020,Cash - Project Fund,asset,debit,1000,Restricted project construction draws,true,1,1000/1020,false
+1030,Cash - Reserve,asset,debit,1000,Debt service reserve and O&M reserve,true,1,1000/1030,false
+1100,Accounts Receivable — Energy Sales,asset,debit,1000,Receivables from PPA and merchant energy sales,true,1,1000/1100,false
+1110,Accounts Receivable — REC Sales,asset,debit,1000,Renewable energy credit receivables,true,1,1000/1110,false
+1120,Accounts Receivable — Capacity Payments,asset,debit,1000,Capacity and ancillary service receivables,true,1,1000/1120,false
+1200,Inventory — Spare Parts,asset,debit,1000,Turbine / inverter / transformer spare parts,true,1,1000/1200,false
+1300,Prepaid Land Leases,asset,debit,1000,Prepaid land lease and easement payments,true,1,1000/1300,false
+1310,Prepaid Insurance,asset,debit,1000,Property / liability / business interruption premiums,true,1,1000/1310,false
+1400,Projects Under Development,asset,debit,1000,Capitalized development costs for pipeline projects,true,1,1000/1400,false
+1500,Solar Generation Assets,asset,debit,1000,Solar PV plants — panels / inverters / racking / BOS,true,1,1000/1500,false
+1510,Wind Generation Assets,asset,debit,1000,Wind turbine generators / towers / foundations / collection,true,1,1000/1510,false
+1520,Transmission Assets,asset,debit,1000,HV transmission lines / substations / transformers,true,1,1000/1520,false
+1530,Storage Assets (BESS),asset,debit,1000,Battery systems / PCS / BMS / enclosures,true,1,1000/1530,false
+1540,Land and Easements,asset,debit,1000,Owned land and permanent easements,true,1,1000/1540,false
+1550,Buildings and Improvements,asset,debit,1000,O&M buildings / control rooms / warehouses / offices,true,1,1000/1550,false
+1560,Vehicles and Field Equipment,asset,debit,1000,Service trucks / ATVs / drone fleet / test equipment,true,1,1000/1560,false
+1600,Accumulated Depreciation,asset,credit,1000,Contra asset — all fixed asset depreciation,true,1,1000/1600,false
+1700,Intangible Assets — PPAs,asset,debit,1000,Below-market PPA contract values (acquisitions),true,1,1000/1700,false
+1710,Intangible Assets — Interconnection Rights,asset,debit,1000,Transmission interconnection queue positions,true,1,1000/1710,false
+2000,Liabilities,liability,credit,,Top-level liabilities,true,0,2000,true
+2010,Accounts Payable,liability,credit,2000,Trade payables,true,1,2000/2010,false
+2020,Accrued Expenses,liability,credit,2000,Accrued O&M / insurance / land leases,true,1,2000/2020,false
+2030,Accrued Interest,liability,credit,2000,Accrued interest on project debt,true,1,2000/2030,false
+2040,Accrued Payroll,liability,credit,2000,Wages / bonuses / benefits accrued,true,1,2000/2040,false
+2100,Project Finance Debt — Term Loan A,liability,credit,2000,Senior secured term loan — solar portfolio,true,1,2000/2100,false
+2110,Project Finance Debt — Term Loan B,liability,credit,2000,Senior secured term loan — wind portfolio,true,1,2000/2110,false
+2120,Revolving Credit Facility,liability,credit,2000,Corporate revolver — $500M facility,true,1,2000/2120,false
+2130,Tax Equity Obligations,liability,credit,2000,Tax equity flip partnership obligations,true,1,2000/2130,false
+2200,Deferred Revenue — PPAs,liability,credit,2000,Deferred PPA prepayments,true,1,2000/2200,false
+2300,Asset Retirement Obligations,liability,credit,2000,Estimated decommissioning and site restoration costs,true,1,2000/2300,false
+3000,Equity,equity,credit,,Stockholders equity,true,0,3000,true
+3010,Common Stock,equity,credit,3000,Common shares outstanding,true,1,3000/3010,false
+3020,Additional Paid-In Capital,equity,credit,3000,Share premium above par value,true,1,3000/3020,false
+3030,Retained Earnings,equity,credit,3000,Accumulated undistributed earnings,true,1,3000/3030,false
+3040,Accumulated OCI,equity,credit,3000,Other comprehensive income — hedging / FX,true,1,3000/3040,false
+4000,Revenue,revenue,credit,,Revenue accounts,true,0,4000,true
+4010,Energy Sales — PPA,revenue,credit,4000,Revenue from power purchase agreements,true,1,4000/4010,false
+4020,Energy Sales — Merchant,revenue,credit,4000,Revenue from spot market and day-ahead sales,true,1,4000/4020,false
+4030,REC Revenue,revenue,credit,4000,Renewable energy certificate sales,true,1,4000/4030,false
+4040,Capacity Payments,revenue,credit,4000,Capacity market and ancillary service revenue,true,1,4000/4040,false
+4050,Storage Revenue — Arbitrage,revenue,credit,4000,BESS energy arbitrage revenue,true,1,4000/4050,false
+4060,O&M Service Revenue,revenue,credit,4000,Third-party O&M contracts,true,1,4000/4060,false
+4070,Development Fee Revenue,revenue,credit,4000,Development and management fees from partnerships,true,1,4000/4070,false
+5000,Cost of Revenue,expense,debit,,Direct operating costs,true,0,5000,true
+5010,O&M Labor,expense,debit,5000,Field technician wages and burden,true,1,5000/5010,false
+5020,Spare Parts & Materials,expense,debit,5000,Replacement components — inverters / panels / blades,true,1,5000/5020,false
+5030,Land Lease Expense,expense,debit,5000,Annual land and easement lease payments,true,1,5000/5030,false
+5040,Insurance — Project Assets,expense,debit,5000,Property / BI / equipment breakdown insurance,true,1,5000/5040,false
+5050,Vegetation Management,expense,debit,5000,Mowing / herbicide / panel row clearing,true,1,5000/5050,false
+5060,Grid Interconnection Fees,expense,debit,5000,ISO/RTO charges / wheeling / scheduling,true,1,5000/5060,false
+5070,Depreciation — Generation Assets,expense,debit,5000,Depreciation of solar / wind / BESS assets,true,1,5000/5070,false
+6000,General & Administrative,expense,debit,,G&A and corporate overhead,true,0,6000,true
+6010,Executive Compensation,expense,debit,6000,Officer salaries / bonuses / equity comp,true,1,6000/6010,false
+6020,Corporate Salaries,expense,debit,6000,HQ staff salaries,true,1,6000/6020,false
+6030,Office Lease,expense,debit,6000,HQ and regional office rent,true,1,6000/6030,false
+6040,Professional Fees,expense,debit,6000,Legal / audit / consulting / advisory,true,1,6000/6040,false
+6050,Travel & Entertainment,expense,debit,6000,Business travel / site visits / conferences,true,1,6000/6050,false
+6060,Software & IT,expense,debit,6000,SCADA / EMS / ERP / cloud / cybersecurity,true,1,6000/6060,false
+6070,Interest Expense,expense,debit,6000,Interest on project debt and corporate revolver,true,1,6000/6070,false
+6080,Depreciation — Corporate,expense,debit,6000,Depreciation of corporate assets,true,1,6000/6080,false
