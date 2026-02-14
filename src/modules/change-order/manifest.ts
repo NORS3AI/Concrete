@@ -1,0 +1,65 @@
+import type { ModuleManifest } from '../../core/types/module';
+
+export const changeOrderManifest: ModuleManifest = {
+  id: 'concrete.changeOrder',
+  name: 'Change Orders',
+  description: 'Change order requests (PCO/COR), change order management, cost impact analysis, approval workflow, trend reporting, and subcontractor flow-down',
+  version: '1.0.0',
+  phase: 19,
+  dependencies: ['concrete.job'],
+  collections: [
+    'co/changeOrderRequest', 'co/changeOrder', 'co/changeOrderLine',
+    'co/changeOrderApproval', 'co/changeOrderLog',
+  ],
+  routes: [
+    { path: '/change-orders/requests', component: () => import('./views/request-list'), title: 'Change Order Requests', icon: 'file-plus' },
+    { path: '/change-orders/requests/new', component: () => import('./views/request-form'), title: 'New Request', icon: 'plus' },
+    { path: '/change-orders/list', component: () => import('./views/co-list'), title: 'Change Orders', icon: 'clipboard' },
+    { path: '/change-orders/new', component: () => import('./views/co-form'), title: 'New Change Order', icon: 'plus' },
+    { path: '/change-orders/:id', component: () => import('./views/co-form'), title: 'Edit Change Order', icon: 'edit' },
+    { path: '/change-orders/:id/cost-impact', component: () => import('./views/cost-impact'), title: 'Cost Impact', icon: 'dollar-sign' },
+    { path: '/change-orders/approvals', component: () => import('./views/approvals'), title: 'Approvals', icon: 'check-circle' },
+    { path: '/change-orders/log', component: () => import('./views/co-log'), title: 'Change Order Log', icon: 'list' },
+    { path: '/change-orders/trend', component: () => import('./views/trend-report'), title: 'Trend Report', icon: 'trending-up' },
+  ],
+  navItems: [
+    { id: 'change-orders', label: 'Change Orders', icon: 'clipboard', path: '/change-orders/list', order: 190 },
+    { id: 'co-requests', label: 'Requests (PCOs)', icon: 'file-plus', path: '/change-orders/requests', order: 1, parent: 'change-orders' },
+    { id: 'co-list', label: 'Change Orders', icon: 'clipboard', path: '/change-orders/list', order: 2, parent: 'change-orders' },
+    { id: 'co-approvals', label: 'Approvals', icon: 'check-circle', path: '/change-orders/approvals', order: 3, parent: 'change-orders' },
+    { id: 'co-log', label: 'Log', icon: 'list', path: '/change-orders/log', order: 4, parent: 'change-orders' },
+    { id: 'co-trend', label: 'Trend Report', icon: 'trending-up', path: '/change-orders/trend', order: 5, parent: 'change-orders' },
+  ],
+  dashboardWidgets: [],
+  settings: [],
+  permissions: [
+    { resource: 'co.request', actions: ['create', 'read', 'update', 'submit', 'withdraw', 'export'], description: 'Change order request management' },
+    { resource: 'co.changeOrder', actions: ['create', 'read', 'update', 'submit', 'approve', 'reject', 'execute', 'void', 'export'], description: 'Change order management' },
+    { resource: 'co.approval', actions: ['read', 'approve', 'reject'], description: 'Change order approvals' },
+    { resource: 'co.log', actions: ['read', 'export'], description: 'Change order activity log' },
+    { resource: 'co.report', actions: ['read', 'export'], description: 'Change order reports (trend, summary)' },
+  ],
+  workflows: [],
+  importTypes: [
+    {
+      id: 'co-change-orders',
+      label: 'Import Change Orders',
+      collection: 'co/changeOrder',
+      fields: [
+        { name: 'number', type: 'string', required: true, label: 'CO Number' },
+        { name: 'title', type: 'string', required: true, label: 'Title' },
+        { name: 'type', type: 'string', required: true, label: 'Type (owner/subcontractor/internal)' },
+        { name: 'amount', type: 'number', required: true, label: 'Amount' },
+        { name: 'status', type: 'string', label: 'Status' },
+        { name: 'effectiveDate', type: 'string', label: 'Effective Date' },
+        { name: 'description', type: 'string', label: 'Description' },
+      ],
+      autoDetectHeaders: true,
+    },
+  ],
+  exportTypes: [
+    { id: 'co-log-export', label: 'Export Change Order Log', collection: 'co/changeOrder', defaultFields: ['number', 'title', 'type', 'status', 'amount', 'approvedAmount', 'effectiveDate', 'executedDate'] },
+    { id: 'co-requests-export', label: 'Export PCO/COR Requests', collection: 'co/changeOrderRequest', defaultFields: ['number', 'title', 'source', 'status', 'estimatedAmount', 'requestDate'] },
+  ],
+  hooks: [],
+};

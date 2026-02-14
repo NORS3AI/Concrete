@@ -1,0 +1,11 @@
+vendorId,jobId,entityId,poNumber,type,description,amount,taxAmount,shippingAmount,totalAmount,status,terms,shipTo,issuedDate,expectedDate
+V-001,J-2024-001,DRC-AZ,PO-2025-001,standard,Ready-mix concrete — 5000 PSI — I-17 paving (est. 8500 CY),722500,0,0,722500,approved,Net 30,I-17 MP 235 batch plant staging area,2025-01-15,2025-12-31
+V-002,J-2025-005,DRC-AZ,PO-2025-002,standard,Rebar #4 through #11 — Pinnacle Tower foundations and structure (est. 1200 tons),1320000,0,18500,1338500,approved,Net 30,Pinnacle Tower job site — 2425 E Camelback Rd,2025-03-15,2026-06-30
+V-010,J-2025-004,DRC-AZ,PO-2025-003,standard,Forming lumber / plywood / hardware — Desert Canyon Elementary,185000,0,4200,189200,approved,Net 30,Desert Canyon Elementary site — Scottsdale,2025-02-01,2025-12-31
+V-001,J-2025-005,DRC-AZ,PO-2025-004,blanket,Ready-mix concrete — 8000 PSI structural — Pinnacle Tower (est. 24000 CY),2640000,0,0,2640000,approved,Net 30,Pinnacle Tower job site — crane access road,2025-05-01,2027-06-30
+V-010,J-2025-008,DRC-NM-SF,PO-2025-005,standard,Adobe bricks / vigas / latillas / rough sawn lumber — Railyard Phase III,340000,24820,8900,373720,approved,Net 30,Santa Fe Railyard Phase III — 500 Market St,2025-04-15,2026-03-31
+V-012,J-2024-001,DRC-EQ,PO-2025-006,standard,CAT 336 GC undercarriage rebuild kit — tracks / rollers / idlers / sprockets,48500,0,2800,51300,partial_receipt,Net 30,DRC Equipment Yard — 7100 W Buckeye Rd Phoenix,2025-06-01,2025-07-15
+V-001,J-2024-003,DRC-AZ,PO-2025-007,standard,Ready-mix concrete — 6000 PSI — EOC foundations and walls (est. 3200 CY),288000,0,0,288000,approved,Net 30,Maricopa County EOC site — 301 W Jefferson,2025-01-20,2025-08-31
+V-002,J-2024-006,DRC-NM-ABQ,PO-2025-008,standard,Bridge rebar — epoxy-coated #5 through #9 — NM-550 (est. 380 tons),456000,33288,12500,501788,approved,Net 30,NM-550 Bridge site — San Ysidro staging area,2025-01-10,2025-09-30
+V-013,J-2025-004,DRC-AZ,PO-2025-009,service,Scissor lift rental (4 units) — Desert Canyon Elementary interior work — 6 months,43200,0,0,43200,approved,Net 30,Desert Canyon Elementary — Scottsdale,2025-06-01,2025-11-30
+V-001,J-2024-009,DRC-NM-ABQ,PO-2025-010,standard,Concrete — 5000 PSI — Presbyterian OR Suite elevated slab repair (est. 150 CY),15000,1095,0,16095,received,Net 30,Presbyterian Rust Medical Center — 9521 San Mateo,2025-01-05,2025-03-31

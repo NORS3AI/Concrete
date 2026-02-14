@@ -1,0 +1,6 @@
+name,code,type,parentId,status,description,taxId,address,city,state,zip,country,phone,email,currency,fiscalYearEndMonth,fiscalYearEndDay
+Desert Ridge Construction LLC,DRC,parent,,active,Full-service general contractor specializing in commercial and highway construction across Arizona and New Mexico,86-1234567,4821 E Camelback Rd Suite 200,Phoenix,AZ,85018,US,602-555-0100,info@desertridgeconstruction.com,USD,12,31
+DRC Arizona Operations,DRC-AZ,subsidiary,DRC,active,Arizona division — commercial buildings / highway / infrastructure,86-1234567,4821 E Camelback Rd Suite 200,Phoenix,AZ,85018,US,602-555-0101,az@desertridgeconstruction.com,USD,12,31
+DRC New Mexico — Albuquerque,DRC-NM-ABQ,subsidiary,DRC,active,Albuquerque office — highway / bridge / public works,85-9876543,301 Central Ave NW Suite 400,Albuquerque,NM,87102,US,505-555-0200,abq@desertridgeconstruction.com,USD,12,31
+DRC New Mexico — Santa Fe,DRC-NM-SF,subsidiary,DRC,active,Santa Fe office — institutional / renovation / historic preservation,85-9876543,112 W San Francisco St,Santa Fe,NM,87501,US,505-555-0300,sf@desertridgeconstruction.com,USD,12,31
+DRC Equipment Co,DRC-EQ,subsidiary,DRC,active,Internal equipment rental and fleet management company,86-5551234,7100 W Buckeye Rd,Phoenix,AZ,85043,US,602-555-0150,equipment@desertridgeconstruction.com,USD,12,31

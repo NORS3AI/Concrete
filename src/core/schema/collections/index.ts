@@ -30,6 +30,8 @@ import { analyticsSchemas } from './analytics';
 import { workflowSchemas } from './workflow';
 import { integrationSchemas } from './integration';
 import { pluginSchemas } from './plugin';
+import { authSchemas } from './auth';
+import { projectSchemas } from './project';
 
 /** Combined array of all collection schemas across every module */
 export const allCollectionSchemas: SchemaDef[] = [
@@ -58,6 +60,8 @@ export const allCollectionSchemas: SchemaDef[] = [
   ...workflowSchemas,
   ...integrationSchemas,
   ...pluginSchemas,
+  ...authSchemas,
+  ...projectSchemas,
 ];
 
 // Re-export individual module schema arrays for targeted access
@@ -87,4 +91,6 @@ export {
   workflowSchemas,
   integrationSchemas,
   pluginSchemas,
+  authSchemas,
+  projectSchemas,
 };

@@ -1,0 +1,51 @@
+import type { ModuleManifest } from '../../core/types/module';
+
+export const tenantManifest: ModuleManifest = {
+  id: 'concrete.tenant',
+  name: 'Multi-Tenant',
+  description: 'Tenant isolation, provisioning, configuration, subscription management, branding, data portability, and GDPR/CCPA compliance',
+  version: '1.0.0',
+  phase: 17,
+  dependencies: [],
+  collections: [
+    'tenant/tenant', 'tenant/tenantConfig', 'tenant/subscription',
+    'tenant/tenantUser', 'tenant/tenantBranding',
+  ],
+  routes: [
+    { path: '/tenant/list', component: () => import('./views/tenant-list'), title: 'All Tenants', icon: 'building' },
+    { path: '/tenant/new', component: () => import('./views/tenant-form'), title: 'New Tenant', icon: 'plus' },
+    { path: '/tenant/:id', component: () => import('./views/tenant-form'), title: 'Edit Tenant', icon: 'edit' },
+    { path: '/tenant/:id/config', component: () => import('./views/tenant-config'), title: 'Tenant Config', icon: 'settings' },
+    { path: '/tenant/:id/users', component: () => import('./views/tenant-users'), title: 'Tenant Users', icon: 'users' },
+    { path: '/tenant/:id/subscription', component: () => import('./views/subscription'), title: 'Subscription', icon: 'credit-card' },
+    { path: '/tenant/:id/branding', component: () => import('./views/branding'), title: 'Branding', icon: 'palette' },
+    { path: '/tenant/data-management', component: () => import('./views/data-management'), title: 'Data Management', icon: 'database' },
+  ],
+  navItems: [
+    { id: 'tenant', label: 'Tenants', icon: 'building', path: '/tenant/list', order: 170 },
+    { id: 'tenant-list', label: 'All Tenants', icon: 'list', path: '/tenant/list', order: 1, parent: 'tenant' },
+    { id: 'tenant-config', label: 'Config', icon: 'settings', path: '/tenant/:id/config', order: 2, parent: 'tenant' },
+    { id: 'tenant-users', label: 'Users', icon: 'users', path: '/tenant/:id/users', order: 3, parent: 'tenant' },
+    { id: 'tenant-subscription', label: 'Subscription', icon: 'credit-card', path: '/tenant/:id/subscription', order: 4, parent: 'tenant' },
+    { id: 'tenant-branding', label: 'Branding', icon: 'palette', path: '/tenant/:id/branding', order: 5, parent: 'tenant' },
+    { id: 'tenant-data', label: 'Data', icon: 'database', path: '/tenant/data-management', order: 6, parent: 'tenant' },
+  ],
+  dashboardWidgets: [],
+  settings: [],
+  permissions: [
+    { resource: 'tenant', actions: ['create', 'read', 'update', 'delete', 'suspend', 'reactivate'], description: 'Tenant management' },
+    { resource: 'tenant.config', actions: ['read', 'update', 'reset'], description: 'Tenant configuration' },
+    { resource: 'tenant.subscription', actions: ['create', 'read', 'update', 'cancel', 'resume'], description: 'Subscription management' },
+    { resource: 'tenant.user', actions: ['invite', 'read', 'update', 'remove'], description: 'Tenant user management' },
+    { resource: 'tenant.branding', actions: ['read', 'update'], description: 'Tenant branding' },
+    { resource: 'tenant.data', actions: ['export', 'delete'], description: 'Data export and deletion' },
+    { resource: 'tenant.analytics', actions: ['read'], description: 'Cross-tenant analytics' },
+  ],
+  workflows: [],
+  importTypes: [],
+  exportTypes: [
+    { id: 'tenant-list', label: 'Export Tenants', collection: 'tenant/tenant', defaultFields: ['name', 'slug', 'status', 'plan', 'dataRegion', 'maxUsers', 'storageUsedMb'] },
+    { id: 'tenant-users', label: 'Export Tenant Users', collection: 'tenant/tenantUser', defaultFields: ['tenantId', 'userId', 'role', 'status', 'joinedAt'] },
+  ],
+  hooks: [],
+};
