@@ -4,14 +4,11 @@
  * and quick actions for creating, editing, and managing estimates.
  */
 
+import { getEstimatingService } from '../service-accessor';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const fmtCurrency = (v: number): string =>
-  v.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-
-const fmtPct = (v: number): string => `${v.toFixed(1)}%`;
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -23,6 +20,23 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (text !== undefined) node.textContent = text;
   return node;
 }
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+const fmtCurrency = (v: number): string =>
+  v.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
+const fmtPct = (v: number): string => `${v.toFixed(1)}%`;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -46,7 +60,56 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Types
+// State
+// ---------------------------------------------------------------------------
+
+let statusFilter = '';
+let searchFilter = '';
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+// ---------------------------------------------------------------------------
+// Filter Bar
+// ---------------------------------------------------------------------------
+
+function buildFilterBar(
+  onFilter: (status: string, search: string) => void,
+): HTMLElement {
+  const bar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
+  const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
+
+  const searchInput = el('input', inputCls) as HTMLInputElement;
+  searchInput.type = 'text';
+  searchInput.placeholder = 'Search estimates...';
+  searchInput.value = searchFilter;
+  bar.appendChild(searchInput);
+
+  const statusSelect = el('select', inputCls) as HTMLSelectElement;
+  for (const opt of STATUS_OPTIONS) {
+    const o = el('option', '', opt.label) as HTMLOptionElement;
+    o.value = opt.value;
+    if (opt.value === statusFilter) o.selected = true;
+    statusSelect.appendChild(o);
+  }
+  bar.appendChild(statusSelect);
+
+  statusSelect.addEventListener('change', () => {
+    statusFilter = statusSelect.value;
+    onFilter(statusFilter, searchFilter);
+  });
+
+  searchInput.addEventListener('input', () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      searchFilter = searchInput.value;
+      onFilter(statusFilter, searchFilter);
+    }, 300);
+  });
+
+  return bar;
+}
+
+// ---------------------------------------------------------------------------
+// Table
 // ---------------------------------------------------------------------------
 
 interface EstimateRow {
@@ -62,41 +125,11 @@ interface EstimateRow {
   bidDate: string;
 }
 
-// ---------------------------------------------------------------------------
-// Filter Bar
-// ---------------------------------------------------------------------------
-
-function buildFilterBar(
-  onFilter: (status: string, search: string) => void,
+function buildTable(
+  estimates: EstimateRow[],
+  container: HTMLElement,
+  renderFn: () => void,
 ): HTMLElement {
-  const bar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
-  const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
-
-  const searchInput = el('input', inputCls) as HTMLInputElement;
-  searchInput.type = 'text';
-  searchInput.placeholder = 'Search estimates...';
-  bar.appendChild(searchInput);
-
-  const statusSelect = el('select', inputCls) as HTMLSelectElement;
-  for (const opt of STATUS_OPTIONS) {
-    const o = el('option', '', opt.label) as HTMLOptionElement;
-    o.value = opt.value;
-    statusSelect.appendChild(o);
-  }
-  bar.appendChild(statusSelect);
-
-  const fire = () => onFilter(statusSelect.value, searchInput.value);
-  statusSelect.addEventListener('change', fire);
-  searchInput.addEventListener('input', fire);
-
-  return bar;
-}
-
-// ---------------------------------------------------------------------------
-// Table
-// ---------------------------------------------------------------------------
-
-function buildTable(estimates: EstimateRow[]): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -152,15 +185,34 @@ function buildTable(estimates: EstimateRow[]): HTMLElement {
 
     const tdActions = el('td', 'py-2 px-3');
     const actionsWrap = el('div', 'flex items-center gap-2');
+
     const editLink = el('a', 'text-[var(--accent)] hover:underline text-sm', 'Edit') as HTMLAnchorElement;
     editLink.href = `#/estimating/${est.id}`;
     actionsWrap.appendChild(editLink);
+
     const linesLink = el('a', 'text-[var(--accent)] hover:underline text-sm', 'Lines') as HTMLAnchorElement;
     linesLink.href = `#/estimating/${est.id}/lines`;
     actionsWrap.appendChild(linesLink);
+
     const bidsLink = el('a', 'text-[var(--accent)] hover:underline text-sm', 'Bids') as HTMLAnchorElement;
     bidsLink.href = `#/estimating/${est.id}/bids`;
     actionsWrap.appendChild(bidsLink);
+
+    const deleteBtn = el('button', 'text-red-400 hover:underline text-sm', 'Delete');
+    deleteBtn.addEventListener('click', async () => {
+      if (!confirm(`Are you sure you want to delete estimate "${est.name}"?`)) return;
+      try {
+        const svc = getEstimatingService();
+        await svc.deleteEstimate(est.id);
+        showMsg(container, `Estimate "${est.name}" deleted.`, false);
+        renderFn();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to delete estimate.';
+        showMsg(container, message, true);
+      }
+    });
+    actionsWrap.appendChild(deleteBtn);
+
     tdActions.appendChild(actionsWrap);
     tr.appendChild(tdActions);
 
@@ -170,6 +222,47 @@ function buildTable(estimates: EstimateRow[]): HTMLElement {
   table.appendChild(tbody);
   wrap.appendChild(table);
   return wrap;
+}
+
+// ---------------------------------------------------------------------------
+// Data Loading
+// ---------------------------------------------------------------------------
+
+async function loadEstimates(status: string, search: string): Promise<EstimateRow[]> {
+  const svc = getEstimatingService();
+
+  const filters: { status?: 'draft' | 'submitted' | 'won' | 'lost' | 'withdrawn'; clientName?: string } = {};
+  if (status) {
+    filters.status = status as 'draft' | 'submitted' | 'won' | 'lost' | 'withdrawn';
+  }
+
+  const results = await svc.getEstimates(filters);
+
+  let rows: EstimateRow[] = results.map((e) => ({
+    id: e.id,
+    name: e.name,
+    revision: e.revision,
+    status: e.status,
+    clientName: e.clientName ?? '',
+    projectName: e.projectName ?? '',
+    totalCost: e.totalCost,
+    totalPrice: e.totalPrice,
+    marginPct: e.marginPct,
+    bidDate: e.bidDate ?? '',
+  }));
+
+  // Apply client-side search filtering by name, clientName, or projectName
+  if (search) {
+    const term = search.toLowerCase();
+    rows = rows.filter(
+      (r) =>
+        r.name.toLowerCase().includes(term) ||
+        r.clientName.toLowerCase().includes(term) ||
+        r.projectName.toLowerCase().includes(term),
+    );
+  }
+
+  return rows;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,11 +282,32 @@ export default {
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildFilterBar((_status, _search) => { /* filter placeholder */ }));
+    const tableContainer = el('div');
 
-    const estimates: EstimateRow[] = [];
-    wrapper.appendChild(buildTable(estimates));
+    const doRender = () => {
+      loadEstimates(statusFilter, searchFilter)
+        .then((rows) => {
+          tableContainer.innerHTML = '';
+          tableContainer.appendChild(buildTable(rows, wrapper, doRender));
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : 'Failed to load estimates.';
+          showMsg(wrapper, message, true);
+        });
+    };
 
+    wrapper.appendChild(
+      buildFilterBar((status, search) => {
+        statusFilter = status;
+        searchFilter = search;
+        doRender();
+      }),
+    );
+
+    wrapper.appendChild(tableContainer);
     container.appendChild(wrapper);
+
+    // Initial load
+    doRender();
   },
 };

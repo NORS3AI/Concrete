@@ -1,5 +1,6 @@
 export { estimatingManifest } from './manifest';
 export { EstimatingService } from './estimating-service';
+export { getEstimatingService } from './service-accessor';
 export type {
   EstimateStatus, Estimate,
   EstimateLineCostType, EstimateLine,

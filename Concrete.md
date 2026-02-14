@@ -884,19 +884,19 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Estimating module
 
-- [ ] Estimate creation linked to job
-- [ ] Assembly/item-based estimating
-- [ ] Labor, material, equipment, sub cost buildup
-- [ ] Markup and margin configuration (per item, per category, overall)
-- [ ] Alternates and allowances
-- [ ] Bid day tracking (bid date, pre-bid, addenda)
-- [ ] Subcontractor bid solicitation and tabulation
-- [ ] Estimate-to-budget transfer (creates job budget from winning estimate)
-- [ ] Historical cost database from actual job costs
-- [ ] Win/loss tracking and analysis
-- [ ] Estimate revision history
-- [ ] Import estimate items from CSV
-- [ ] Export estimate to CSV/PDF
+- [x] Estimate creation linked to job
+- [x] Assembly/item-based estimating
+- [x] Labor, material, equipment, sub cost buildup
+- [x] Markup and margin configuration (per item, per category, overall)
+- [x] Alternates and allowances
+- [x] Bid day tracking (bid date, pre-bid, addenda)
+- [x] Subcontractor bid solicitation and tabulation
+- [x] Estimate-to-budget transfer (creates job budget from winning estimate)
+- [x] Historical cost database from actual job costs
+- [x] Win/loss tracking and analysis
+- [x] Estimate revision history
+- [x] Import estimate items from CSV
+- [x] Export estimate to CSV/PDF
 
 ---
 
