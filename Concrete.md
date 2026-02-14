@@ -1094,22 +1094,22 @@ plugin/customField    plugin/script
 
 > OSHA compliance and safety program management
 
-- [ ] Safety incident recording (injury, near-miss, property damage)
-- [ ] OSHA 300/300A/301 log generation
-- [ ] TRIR (Total Recordable Incident Rate) calculation
-- [ ] DART rate calculation
-- [ ] EMR (Experience Modification Rate) tracking
-- [ ] Safety inspection/audit checklist templates
-- [ ] Toolbox talk/safety meeting log
-- [ ] PPE tracking by employee
-- [ ] Drug testing schedule and results tracking
-- [ ] Job site safety plan templates
-- [ ] Safety training matrix (required vs. completed)
-- [ ] Corrective action tracking
-- [ ] Safety dashboard with trend analysis
-- [ ] DOT compliance tracking (CDL, physicals, hours of service)
-- [ ] Import incident records from CSV
-- [ ] Export OSHA logs to PDF/CSV
+- [x] Safety incident recording (injury, near-miss, property damage)
+- [x] OSHA 300/300A/301 log generation
+- [x] TRIR (Total Recordable Incident Rate) calculation
+- [x] DART rate calculation
+- [x] EMR (Experience Modification Rate) tracking
+- [x] Safety inspection/audit checklist templates
+- [x] Toolbox talk/safety meeting log
+- [x] PPE tracking by employee
+- [x] Drug testing schedule and results tracking
+- [x] Job site safety plan templates
+- [x] Safety training matrix (required vs. completed)
+- [x] Corrective action tracking
+- [x] Safety dashboard with trend analysis
+- [x] DOT compliance tracking (CDL, physicals, hours of service)
+- [x] Import incident records from CSV
+- [x] Export OSHA logs to PDF/CSV
 
 ---
 
