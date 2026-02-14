@@ -800,20 +800,20 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Subcontract module
 
-- [ ] Subcontractor master (links to vendor)
-- [ ] Subcontract creation: scope, amount, terms, retention %, schedule of values
-- [ ] Change order tracking (additions, deductions, time extensions)
-- [ ] Payment application processing (AIA G702 from sub)
-- [ ] Retention schedule and release tracking
-- [ ] Backcharge tracking and deductions
-- [ ] Insurance certificate tracking with expiration alerts
-- [ ] Prequalification questionnaire tracking
-- [ ] Performance scoring and history
-- [ ] Subcontractor compliance matrix (insurance, license, bond, OSHA, E-Verify)
-- [ ] Lien waiver collection workflow
-- [ ] Bonding capacity tracking
-- [ ] Import subcontracts from CSV
-- [ ] Export sub payment history to CSV
+- [x] Subcontractor master (links to vendor)
+- [x] Subcontract creation: scope, amount, terms, retention %, schedule of values
+- [x] Change order tracking (additions, deductions, time extensions)
+- [x] Payment application processing (AIA G702 from sub)
+- [x] Retention schedule and release tracking
+- [x] Backcharge tracking and deductions
+- [x] Insurance certificate tracking with expiration alerts
+- [x] Prequalification questionnaire tracking
+- [x] Performance scoring and history
+- [x] Subcontractor compliance matrix (insurance, license, bond, OSHA, E-Verify)
+- [x] Lien waiver collection workflow
+- [x] Bonding capacity tracking
+- [x] Import subcontracts from CSV
+- [x] Export sub payment history to CSV
 
 ---
 

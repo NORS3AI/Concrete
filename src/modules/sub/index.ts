@@ -1,5 +1,6 @@
 export { subManifest } from './manifest';
 export { SubService } from './sub-service';
+export { getSubService } from './service-accessor';
 export type {
   SubcontractStatus, Subcontract,
   ChangeOrderType, ChangeOrderStatus, ChangeOrder,
