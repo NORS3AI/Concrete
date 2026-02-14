@@ -923,26 +923,26 @@ plugin/customField    plugin/script
 
 > Hardened import system for enterprise-scale data migration
 
-- [ ] Universal import wizard: auto-detect data type from headers
-- [ ] Foundation Software data import (IIF, CSV exports from Foundation)
-- [ ] QuickBooks Desktop/Online import
-- [ ] Sage 100/300 import format
-- [ ] Viewpoint Vista import format
-- [ ] ComputerEase import format
-- [ ] Custom delimiter support (pipe, semicolon, tab, fixed-width)
-- [ ] Merge import with conflict resolution UI (side-by-side diff)
-- [ ] Merge strategies: skip, overwrite, append, manual
-- [ ] Composite key configuration per data type
-- [ ] Dry-run preview: show what will be added/updated/skipped before commit
-- [ ] Import validation rules (required fields, data types, referential integrity)
-- [ ] Batch import with progress indicator
-- [ ] Import undo (revert entire batch)
-- [ ] Full export to JSON (complete backup)
-- [ ] Selective export by entity, date range, job, data type
-- [ ] CSV export with column selection
-- [ ] PDF report export with letterhead
-- [ ] API export format (JSON with pagination metadata)
-- [ ] Scheduled exports (Phase 16+)
+- [x] Universal import wizard: auto-detect data type from headers
+- [x] Foundation Software data import (IIF, CSV exports from Foundation)
+- [x] QuickBooks Desktop/Online import
+- [x] Sage 100/300 import format
+- [x] Viewpoint Vista import format
+- [x] ComputerEase import format
+- [x] Custom delimiter support (pipe, semicolon, tab, fixed-width)
+- [x] Merge import with conflict resolution UI (side-by-side diff)
+- [x] Merge strategies: skip, overwrite, append, manual
+- [x] Composite key configuration per data type
+- [x] Dry-run preview: show what will be added/updated/skipped before commit
+- [x] Import validation rules (required fields, data types, referential integrity)
+- [x] Batch import with progress indicator
+- [x] Import undo (revert entire batch)
+- [x] Full export to JSON (complete backup)
+- [x] Selective export by entity, date range, job, data type
+- [x] CSV export with column selection
+- [x] PDF report export with letterhead
+- [x] API export format (JSON with pagination metadata)
+- [x] Scheduled exports (Phase 16+)
 
 ---
 

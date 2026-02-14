@@ -3,16 +3,20 @@
  * Conflict resolution UI for manual merge strategy.
  * Shows side-by-side comparison of incoming vs. existing records,
  * allowing the user to choose per-field or per-row resolution.
+ * Supports bulk resolution and commit with resolutions map.
+ *
+ * Fully wired to ImportExportService for preview, commit, and navigation.
  */
+
+import { getImportExportService } from '../service-accessor';
+import type { PreviewRow, ConflictField } from '../import-export-service';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  cls?: string,
-  text?: string,
+  tag: K, cls?: string, text?: string,
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
@@ -20,11 +24,23 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const RESOLUTION_OPTIONS = [
+const RESOLUTION_OPTIONS: { value: 'add' | 'update' | 'skip'; label: string; cls: string }[] = [
   { value: 'add', label: 'Add as New', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
   { value: 'update', label: 'Overwrite Existing', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
   { value: 'skip', label: 'Skip (Keep Existing)', cls: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' },
@@ -38,15 +54,37 @@ interface ConflictRecord {
   rowNumber: number;
   sourceData: Record<string, unknown>;
   existingData: Record<string, unknown>;
-  conflicts: { field: string; sourceValue: unknown; existingValue: unknown }[];
-  resolution: string;
+  conflicts: ConflictField[];
+  resolution: 'add' | 'update' | 'skip';
+  fieldKeep: Record<string, 'source' | 'existing'>;
+}
+
+// ---------------------------------------------------------------------------
+// Parse batchId from hash
+// ---------------------------------------------------------------------------
+
+function parseBatchId(): string | null {
+  const hash = window.location.hash;
+  // Expected: #/import-export/merge/{batchId}
+  const match = hash.match(/merge\/([^/]+)/);
+  if (match) return match[1];
+  // Fallback: import/{batchId}/merge
+  const match2 = hash.match(/import\/([^/]+)\/merge/);
+  if (match2) return match2[1];
+  // Another fallback
+  const match3 = hash.match(/import\/([^/]+)/);
+  if (match3) return match3[1];
+  return null;
 }
 
 // ---------------------------------------------------------------------------
 // Conflict Summary
 // ---------------------------------------------------------------------------
 
-function buildConflictSummary(conflicts: ConflictRecord[]): HTMLElement {
+function buildConflictSummary(
+  conflicts: ConflictRecord[],
+  onBulkResolve: (resolution: 'add' | 'update' | 'skip') => void,
+): HTMLElement {
   const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6 mb-6');
 
   const headerRow = el('div', 'flex items-center justify-between mb-4');
@@ -61,7 +99,8 @@ function buildConflictSummary(conflicts: ConflictRecord[]): HTMLElement {
   const bulkActions = el('div', 'flex gap-3 mb-4');
   bulkActions.appendChild(el('span', 'text-sm text-[var(--text-muted)] mr-2', 'Resolve all as:'));
   for (const opt of RESOLUTION_OPTIONS) {
-    const btn = el('button', `px-3 py-1 rounded-md text-xs font-medium border ${opt.cls}`, opt.label);
+    const btn = el('button', `px-3 py-1 rounded-md text-xs font-medium border ${opt.cls} hover:opacity-80`, opt.label);
+    btn.addEventListener('click', () => onBulkResolve(opt.value));
     bulkActions.appendChild(btn);
   }
   card.appendChild(bulkActions);
@@ -73,7 +112,11 @@ function buildConflictSummary(conflicts: ConflictRecord[]): HTMLElement {
 // Side-by-Side Diff
 // ---------------------------------------------------------------------------
 
-function buildSideBySideDiff(conflict: ConflictRecord): HTMLElement {
+function buildSideBySideDiff(
+  conflict: ConflictRecord,
+  onResolutionChange: (rowNumber: number, resolution: 'add' | 'update' | 'skip') => void,
+  onFieldKeepChange: (rowNumber: number, field: string, keep: 'source' | 'existing') => void,
+): HTMLElement {
   const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6 mb-4');
 
   const headerRow = el('div', 'flex items-center justify-between mb-4');
@@ -82,17 +125,23 @@ function buildSideBySideDiff(conflict: ConflictRecord): HTMLElement {
   rowLabel.appendChild(el('span', 'px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20', `${conflict.conflicts.length} field conflict(s)`));
   headerRow.appendChild(rowLabel);
 
+  // Per-row resolution buttons
   const resolutionWrap = el('div', 'flex gap-2');
   for (const opt of RESOLUTION_OPTIONS) {
     const isSelected = opt.value === conflict.resolution;
     const btnCls = isSelected
       ? `px-3 py-1 rounded-md text-xs font-medium border-2 ${opt.cls} ring-2 ring-[var(--accent)]/30`
       : `px-3 py-1 rounded-md text-xs font-medium border ${opt.cls} opacity-60 hover:opacity-100`;
-    resolutionWrap.appendChild(el('button', btnCls, opt.label));
+    const btn = el('button', btnCls, opt.label);
+    btn.addEventListener('click', () => {
+      onResolutionChange(conflict.rowNumber, opt.value);
+    });
+    resolutionWrap.appendChild(btn);
   }
   headerRow.appendChild(resolutionWrap);
   card.appendChild(headerRow);
 
+  // Side-by-side panels
   const diffGrid = el('div', 'grid grid-cols-2 gap-4');
 
   const sourcePanel = el('div', 'bg-[var(--surface)] rounded-lg p-4 border border-emerald-500/20');
@@ -123,6 +172,7 @@ function buildSideBySideDiff(conflict: ConflictRecord): HTMLElement {
 
   card.appendChild(diffGrid);
 
+  // Conflicting fields table with per-field "Keep" dropdown
   const conflictDetails = el('div', 'mt-4 bg-[var(--surface)] rounded-lg p-3 border border-[var(--border)]');
   conflictDetails.appendChild(el('h5', 'text-xs font-bold text-amber-400 mb-2', 'Conflicting Fields'));
   const conflictTable = el('table', 'w-full text-xs');
@@ -150,6 +200,12 @@ function buildSideBySideDiff(conflict: ConflictRecord): HTMLElement {
     const optExisting = el('option', '', 'Existing') as HTMLOptionElement;
     optExisting.value = 'existing';
     keepSelect.appendChild(optExisting);
+    // Set current value
+    const currentKeep = conflict.fieldKeep[cf.field] ?? 'source';
+    keepSelect.value = currentKeep;
+    keepSelect.addEventListener('change', () => {
+      onFieldKeepChange(conflict.rowNumber, cf.field, keepSelect.value as 'source' | 'existing');
+    });
     tdKeep.appendChild(keepSelect);
     cfRow.appendChild(tdKeep);
 
@@ -171,42 +227,20 @@ export default {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
+    const svc = getImportExportService();
+    const batchId = parseBatchId();
+
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Merge Conflict Resolution'));
     wrapper.appendChild(headerRow);
 
     wrapper.appendChild(el('p', 'text-sm text-[var(--text-muted)] mb-4', 'Review and resolve each conflict below. For each row, you can choose to add a new record, overwrite the existing record, or skip the row entirely. You can also resolve conflicts on a per-field basis.'));
 
-    const sampleConflicts: ConflictRecord[] = [
-      {
-        rowNumber: 3,
-        sourceData: { name: 'ABC Concrete LLC', code: 'V-001', phone: '555-0101', email: 'info@abc.com', status: 'active' },
-        existingData: { name: 'ABC Concrete Inc.', code: 'V-001', phone: '555-0100', email: 'old@abc.com', status: 'active' },
-        conflicts: [
-          { field: 'name', sourceValue: 'ABC Concrete LLC', existingValue: 'ABC Concrete Inc.' },
-          { field: 'phone', sourceValue: '555-0101', existingValue: '555-0100' },
-          { field: 'email', sourceValue: 'info@abc.com', existingValue: 'old@abc.com' },
-        ],
-        resolution: 'skip',
-      },
-      {
-        rowNumber: 7,
-        sourceData: { name: 'XYZ Steel Supply', code: 'V-005', phone: '555-0200', amount: 75000 },
-        existingData: { name: 'XYZ Steel Supply', code: 'V-005', phone: '555-0199', amount: 50000 },
-        conflicts: [
-          { field: 'phone', sourceValue: '555-0200', existingValue: '555-0199' },
-          { field: 'amount', sourceValue: 75000, existingValue: 50000 },
-        ],
-        resolution: 'update',
-      },
-    ];
+    const contentArea = el('div');
+    contentArea.appendChild(el('p', 'text-sm text-[var(--text-muted)]', 'Loading conflicts...'));
+    wrapper.appendChild(contentArea);
 
-    wrapper.appendChild(buildConflictSummary(sampleConflicts));
-
-    for (const conflict of sampleConflicts) {
-      wrapper.appendChild(buildSideBySideDiff(conflict));
-    }
-
+    // Actions
     const actions = el('div', 'flex justify-between gap-3 mt-4');
     const backBtn = el('button', 'px-6 py-2 rounded-md text-sm font-medium bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:bg-[var(--surface-raised)]', 'Back to Preview');
     actions.appendChild(backBtn);
@@ -219,5 +253,138 @@ export default {
     wrapper.appendChild(actions);
 
     container.appendChild(wrapper);
+
+    // --- State ---
+    const conflictRecords: ConflictRecord[] = [];
+
+    if (!batchId) {
+      contentArea.innerHTML = '';
+      contentArea.appendChild(el('p', 'text-sm text-red-400', 'No batch ID found in the URL. Navigate from the Import Wizard or Preview.'));
+      return;
+    }
+
+    // --- Re-render all conflict diffs ---
+    const rerenderConflicts = () => {
+      contentArea.innerHTML = '';
+
+      // Summary
+      contentArea.appendChild(buildConflictSummary(conflictRecords, (resolution) => {
+        // Bulk resolve: update all conflict records
+        for (const record of conflictRecords) {
+          record.resolution = resolution;
+        }
+        rerenderConflicts();
+        showMsg(wrapper, `All conflicts resolved as "${resolution}".`, false);
+      }));
+
+      // Individual conflict diffs
+      for (const conflict of conflictRecords) {
+        contentArea.appendChild(buildSideBySideDiff(
+          conflict,
+          (rowNumber, resolution) => {
+            const record = conflictRecords.find((r) => r.rowNumber === rowNumber);
+            if (record) {
+              record.resolution = resolution;
+              rerenderConflicts();
+            }
+          },
+          (rowNumber, field, keep) => {
+            const record = conflictRecords.find((r) => r.rowNumber === rowNumber);
+            if (record) {
+              record.fieldKeep[field] = keep;
+            }
+          },
+        ));
+      }
+
+      if (conflictRecords.length === 0) {
+        contentArea.appendChild(el('p', 'text-sm text-[var(--text-muted)] text-center py-8', 'No conflicts found. All rows are ready for import.'));
+      }
+    };
+
+    // --- Load data ---
+    const loadConflicts = async () => {
+      try {
+        const previewResult = await svc.preview(batchId);
+
+        // Filter to conflict rows only
+        const conflictRows = previewResult.rows.filter((r) => r.action === 'conflict');
+
+        for (const row of conflictRows) {
+          const fieldKeep: Record<string, 'source' | 'existing'> = {};
+          if (row.conflicts) {
+            for (const cf of row.conflicts) {
+              fieldKeep[cf.field] = 'source'; // default to incoming
+            }
+          }
+
+          conflictRecords.push({
+            rowNumber: row.rowNumber,
+            sourceData: row.sourceData,
+            existingData: row.existingData ?? {},
+            conflicts: row.conflicts ?? [],
+            resolution: 'skip', // default resolution
+            fieldKeep,
+          });
+        }
+
+        rerenderConflicts();
+      } catch (err) {
+        contentArea.innerHTML = '';
+        showMsg(wrapper, `Failed to load conflicts: ${err instanceof Error ? err.message : String(err)}`, true);
+      }
+    };
+
+    // --- Back to Preview ---
+    backBtn.addEventListener('click', () => {
+      window.location.hash = `#/import-export/import/${batchId}`;
+    });
+
+    // --- Skip All Conflicts ---
+    skipAllBtn.addEventListener('click', () => {
+      for (const record of conflictRecords) {
+        record.resolution = 'skip';
+      }
+      rerenderConflicts();
+      showMsg(wrapper, 'All conflicts set to "skip".', false);
+    });
+
+    // --- Apply Resolutions & Commit ---
+    applyBtn.addEventListener('click', async () => {
+      applyBtn.disabled = true;
+      applyBtn.textContent = 'Committing...';
+      skipAllBtn.style.display = 'none';
+      backBtn.style.display = 'none';
+
+      try {
+        // Build resolutions map from conflict records
+        const resolutions: Record<number, 'add' | 'update' | 'skip'> = {};
+        for (const record of conflictRecords) {
+          resolutions[record.rowNumber] = record.resolution;
+        }
+
+        const result = await svc.commit(batchId, resolutions);
+
+        const statsMsg = `Import committed: ${result.importedRows} imported, ${result.skippedRows} skipped, ${result.errorRows} errors.`;
+        const isSuccess = result.status === 'completed';
+        showMsg(wrapper, statsMsg, !isSuccess);
+
+        // Navigate to history after a brief delay
+        applyBtn.textContent = 'View Import History';
+        applyBtn.disabled = false;
+        applyBtn.className = 'px-6 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90';
+        applyBtn.onclick = () => {
+          window.location.hash = '#/import-export/history';
+        };
+      } catch (err) {
+        showMsg(wrapper, `Commit failed: ${err instanceof Error ? err.message : String(err)}`, true);
+        applyBtn.disabled = false;
+        applyBtn.textContent = 'Retry Commit';
+        skipAllBtn.style.display = '';
+        backBtn.style.display = '';
+      }
+    });
+
+    loadConflicts();
   },
 };
