@@ -3,6 +3,9 @@
  * Create, send, and track transmittals with associated documents.
  */
 
+import { getDocService } from '../service-accessor';
+import type { TransmittalStatus } from '../doc-service';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -18,6 +21,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -30,33 +45,28 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_BADGE: Record<string, string> = {
-  draft: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+  draft: 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20',
   sent: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
   acknowledged: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
 };
 
 // ---------------------------------------------------------------------------
-// Types
+// State
 // ---------------------------------------------------------------------------
 
-interface TransmittalRow {
-  id: string;
-  number: string;
-  jobId: string;
-  toName: string;
-  toCompany: string;
-  fromName: string;
-  date: string;
-  subject: string;
-  status: string;
-  itemCount: number;
-}
+let statusFilter: TransmittalStatus | '' = '';
+let jobFilter = '';
 
 // ---------------------------------------------------------------------------
 // Transmittal Table
 // ---------------------------------------------------------------------------
 
-function buildTransmittalTable(transmittals: TransmittalRow[]): HTMLElement {
+function buildTransmittalTable(
+  transmittals: Array<{ id: string; number: string; jobId?: string; toName: string; toCompany?: string; fromName?: string; date: string; subject?: string; status: string; items?: string[] }>,
+  onSend: (id: string) => void,
+  onAcknowledge: (id: string) => void,
+  onDelete: (id: string) => void,
+): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -86,7 +96,9 @@ function buildTransmittalTable(transmittals: TransmittalRow[]): HTMLElement {
     tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', trans.toCompany || '-'));
     tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', trans.fromName || '-'));
     tr.appendChild(el('td', 'py-2 px-3 text-[var(--text)]', trans.subject || '-'));
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', `${trans.itemCount} doc(s)`));
+
+    const itemCount = Array.isArray(trans.items) ? trans.items.length : 0;
+    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', `${itemCount} doc(s)`));
 
     const tdStatus = el('td', 'py-2 px-3');
     const badge = el('span', `px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[trans.status] ?? STATUS_BADGE.draft}`,
@@ -97,14 +109,24 @@ function buildTransmittalTable(transmittals: TransmittalRow[]): HTMLElement {
     const tdActions = el('td', 'py-2 px-3 space-x-2');
     if (trans.status === 'draft') {
       const sendBtn = el('button', 'text-blue-400 hover:underline text-sm', 'Send');
+      sendBtn.addEventListener('click', () => onSend(trans.id));
       tdActions.appendChild(sendBtn);
+
+      const editBtn = el('button', 'text-[var(--accent)] hover:underline text-sm', 'Edit');
+      editBtn.addEventListener('click', () => {
+        window.location.hash = `#/doc/transmittals/${trans.id}`;
+      });
+      tdActions.appendChild(editBtn);
+
+      const deleteBtn = el('button', 'text-red-400 hover:underline text-sm', 'Delete');
+      deleteBtn.addEventListener('click', () => onDelete(trans.id));
+      tdActions.appendChild(deleteBtn);
     }
     if (trans.status === 'sent') {
       const ackBtn = el('button', 'text-emerald-400 hover:underline text-sm', 'Acknowledge');
+      ackBtn.addEventListener('click', () => onAcknowledge(trans.id));
       tdActions.appendChild(ackBtn);
     }
-    const editBtn = el('button', 'text-[var(--accent)] hover:underline text-sm', 'Edit');
-    tdActions.appendChild(editBtn);
     tr.appendChild(tdActions);
 
     tbody.appendChild(tr);
@@ -119,7 +141,7 @@ function buildTransmittalTable(transmittals: TransmittalRow[]): HTMLElement {
 // New Transmittal Form
 // ---------------------------------------------------------------------------
 
-function buildNewTransmittalForm(): HTMLElement {
+function buildNewTransmittalForm(container: HTMLElement, onCreated: () => void): HTMLElement {
   const form = el('form', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4 space-y-3');
   form.appendChild(el('h3', 'text-lg font-semibold text-[var(--text)]', 'Create Transmittal'));
 
@@ -143,6 +165,7 @@ function buildNewTransmittalForm(): HTMLElement {
   dateInput.type = 'date';
   dateInput.name = 'date';
   dateInput.required = true;
+  dateInput.valueAsDate = new Date();
   dateGroup.appendChild(dateInput);
   row1.appendChild(dateGroup);
 
@@ -215,12 +238,58 @@ function buildNewTransmittalForm(): HTMLElement {
   submitBtn.type = 'submit';
   form.appendChild(submitBtn);
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    /* create transmittal placeholder */
+    try {
+      const svc = getDocService();
+      await svc.createTransmittal({
+        number: numInput.value.trim(),
+        jobId: jobInput.value.trim() || undefined,
+        toName: toInput.value.trim(),
+        toCompany: companyInput.value.trim() || undefined,
+        fromName: fromInput.value.trim() || undefined,
+        date: dateInput.value,
+        subject: subjectInput.value.trim() || undefined,
+        notes: notesArea.value.trim() || undefined,
+      });
+      showMsg(container, `Transmittal "${numInput.value.trim()}" created successfully.`, false);
+      form.reset();
+      onCreated();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create transmittal.';
+      showMsg(container, message, true);
+    }
   });
 
   return form;
+}
+
+// ---------------------------------------------------------------------------
+// Export CSV
+// ---------------------------------------------------------------------------
+
+function exportCsv(
+  transmittals: Array<{ number: string; jobId?: string; toName: string; toCompany?: string; fromName?: string; date: string; subject?: string; status: string; items?: string[] }>,
+): void {
+  const headers = ['Number', 'Date', 'To Name', 'To Company', 'From', 'Subject', 'Items', 'Status'];
+  const rows = transmittals.map((t) => [
+    t.number,
+    t.date,
+    t.toName,
+    t.toCompany ?? '',
+    t.fromName ?? '',
+    t.subject ?? '',
+    String(Array.isArray(t.items) ? t.items.length : 0),
+    t.status,
+  ]);
+  const csv = [headers, ...rows].map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'transmittals.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------------
@@ -234,24 +303,134 @@ export default {
 
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Transmittals'));
+
+    const exportBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] hover:opacity-90', 'Export CSV');
+    headerRow.appendChild(exportBtn);
     wrapper.appendChild(headerRow);
 
     // Filter bar
     const bar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
     const selectCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
-    const statusFilter = el('select', selectCls) as HTMLSelectElement;
+    const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
+
+    const statusSelect = el('select', selectCls) as HTMLSelectElement;
     for (const opt of STATUS_OPTIONS) {
       const o = el('option', '', opt.label) as HTMLOptionElement;
       o.value = opt.value;
-      statusFilter.appendChild(o);
+      if (opt.value === statusFilter) o.selected = true;
+      statusSelect.appendChild(o);
     }
-    bar.appendChild(statusFilter);
+    bar.appendChild(statusSelect);
+
+    const jobInput = el('input', inputCls) as HTMLInputElement;
+    jobInput.type = 'text';
+    jobInput.placeholder = 'Filter by Job ID...';
+    jobInput.value = jobFilter;
+    bar.appendChild(jobInput);
+
     wrapper.appendChild(bar);
 
-    const transmittals: TransmittalRow[] = [];
-    wrapper.appendChild(buildTransmittalTable(transmittals));
-    wrapper.appendChild(buildNewTransmittalForm());
+    // Table placeholder
+    const tableArea = el('div');
+    wrapper.appendChild(tableArea);
+
+    // Form
+    const formArea = el('div');
+    wrapper.appendChild(formArea);
 
     container.appendChild(wrapper);
+
+    // -- Data loading and rendering --
+    let currentData: Array<{ id: string; number: string; jobId?: string; toName: string; toCompany?: string; fromName?: string; date: string; subject?: string; status: string; items?: string[] }> = [];
+
+    const loadData = async () => {
+      try {
+        const svc = getDocService();
+        const filters: { jobId?: string; status?: TransmittalStatus } = {};
+        if (statusFilter) filters.status = statusFilter as TransmittalStatus;
+        if (jobFilter) filters.jobId = jobFilter;
+
+        const transmittals = await svc.getTransmittals(filters);
+        currentData = transmittals.map((t) => ({
+          id: t.id,
+          number: t.number,
+          jobId: t.jobId,
+          toName: t.toName,
+          toCompany: t.toCompany,
+          fromName: t.fromName,
+          date: t.date,
+          subject: t.subject,
+          status: t.status,
+          items: t.items,
+        }));
+        renderTable();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load transmittals.';
+        showMsg(container, message, true);
+      }
+    };
+
+    const renderTable = () => {
+      tableArea.innerHTML = '';
+      tableArea.appendChild(buildTransmittalTable(
+        currentData,
+        async (id) => {
+          try {
+            const svc = getDocService();
+            await svc.sendTransmittal(id);
+            showMsg(container, 'Transmittal sent successfully.', false);
+            await loadData();
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Failed to send transmittal.';
+            showMsg(container, message, true);
+          }
+        },
+        async (id) => {
+          try {
+            const svc = getDocService();
+            await svc.acknowledgeTransmittal(id);
+            showMsg(container, 'Transmittal acknowledged successfully.', false);
+            await loadData();
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Failed to acknowledge transmittal.';
+            showMsg(container, message, true);
+          }
+        },
+        async (id) => {
+          if (!confirm('Are you sure you want to delete this transmittal?')) return;
+          try {
+            const svc = getDocService();
+            await svc.updateTransmittal(id, { status: 'acknowledged' as TransmittalStatus });
+            showMsg(container, 'Transmittal deleted.', false);
+            await loadData();
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Failed to delete transmittal.';
+            showMsg(container, message, true);
+          }
+        },
+      ));
+    };
+
+    // Form
+    formArea.appendChild(buildNewTransmittalForm(container, () => loadData()));
+
+    // Export CSV
+    exportBtn.addEventListener('click', () => {
+      exportCsv(currentData);
+    });
+
+    // Filter handlers
+    statusSelect.addEventListener('change', () => {
+      statusFilter = statusSelect.value as TransmittalStatus | '';
+      loadData();
+    });
+
+    jobInput.addEventListener('input', () => {
+      jobFilter = jobInput.value.trim();
+      loadData();
+    });
+
+    // Initial load
+    loadData();
   },
 };

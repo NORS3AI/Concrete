@@ -904,18 +904,18 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Document Management
 
-- [ ] Document categories: Contract, Change Order, RFI, Submittal, Drawing, Photo, Report, Correspondence
-- [ ] Document tagging by job, entity, vendor, employee
-- [ ] Version control with revision history
-- [ ] File storage: local (download/upload cycle) in static mode, R2 in cloud mode
-- [ ] Document templates (contract, lien waiver, AIA forms, change order)
-- [ ] Full-text search across document metadata
-- [ ] Document expiration alerts (insurance certs, licenses, bonds)
-- [ ] Photo log with date/location/job stamping
-- [ ] Drawing log with revision tracking
-- [ ] Transmittal creation and tracking
-- [ ] Export document index to CSV
-- [ ] Import document metadata from CSV
+- [x] Document categories: Contract, Change Order, RFI, Submittal, Drawing, Photo, Report, Correspondence
+- [x] Document tagging by job, entity, vendor, employee
+- [x] Version control with revision history
+- [x] File storage: local (download/upload cycle) in static mode, R2 in cloud mode
+- [x] Document templates (contract, lien waiver, AIA forms, change order)
+- [x] Full-text search across document metadata
+- [x] Document expiration alerts (insurance certs, licenses, bonds)
+- [x] Photo log with date/location/job stamping
+- [x] Drawing log with revision tracking
+- [x] Transmittal creation and tracking
+- [x] Export document index to CSV
+- [x] Import document metadata from CSV
 
 ---
 
