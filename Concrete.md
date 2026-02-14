@@ -779,20 +779,20 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Equipment Cost
 
-- [ ] Equipment master: ID, description, year, make, model, serial, VIN, license
-- [ ] Equipment categories: Owned, Leased, Rented, Idle
-- [ ] Depreciation tracking (straight-line, MACRS, declining balance)
-- [ ] Equipment rate tables (hourly, daily, weekly, monthly)
-- [ ] Equipment cost posting to jobs by hours/days used
-- [ ] Fuel consumption tracking
-- [ ] Maintenance schedule and work order tracking
-- [ ] Equipment utilization rate analysis
-- [ ] Owning vs operating cost breakdown
-- [ ] Equipment P&L by unit
-- [ ] FHWA rate comparison
-- [ ] GPS/telematics data placeholder (Phase 26+)
-- [ ] Import equipment list from CSV
-- [ ] Export equipment utilization to CSV
+- [x] Equipment master: ID, description, year, make, model, serial, VIN, license
+- [x] Equipment categories: Owned, Leased, Rented, Idle
+- [x] Depreciation tracking (straight-line, MACRS, declining balance)
+- [x] Equipment rate tables (hourly, daily, weekly, monthly)
+- [x] Equipment cost posting to jobs by hours/days used
+- [x] Fuel consumption tracking
+- [x] Maintenance schedule and work order tracking
+- [x] Equipment utilization rate analysis
+- [x] Owning vs operating cost breakdown
+- [x] Equipment P&L by unit
+- [x] FHWA rate comparison
+- [x] GPS/telematics data placeholder (Phase 26+)
+- [x] Import equipment list from CSV
+- [x] Export equipment utilization to CSV
 
 ---
 

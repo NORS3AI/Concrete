@@ -1,5 +1,6 @@
 export { equipManifest } from './manifest';
 export { EquipService } from './equip-service';
+export { getEquipService } from './service-accessor';
 export type {
   EquipmentCategory, EquipmentStatus, DepreciationMethod, MeterUnit,
   Equipment,

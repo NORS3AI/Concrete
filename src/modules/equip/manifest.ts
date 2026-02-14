@@ -21,6 +21,7 @@ export const equipManifest: ModuleManifest = {
     { path: '/equipment/utilization', component: () => import('./views/utilization'), title: 'Utilization', icon: 'bar-chart-2' },
     { path: '/equipment/depreciation', component: () => import('./views/depreciation'), title: 'Depreciation', icon: 'trending-down' },
     { path: '/equipment/work-orders', component: () => import('./views/work-orders'), title: 'Work Orders', icon: 'clipboard' },
+    { path: '/equipment/pnl', component: () => import('./views/pnl'), title: 'Equipment P&L', icon: 'dollar-sign' },
   ],
   navItems: [
     { id: 'equip', label: 'Equipment', icon: 'truck', path: '/equipment', order: 80 },
@@ -31,6 +32,7 @@ export const equipManifest: ModuleManifest = {
     { id: 'equip-utilization', label: 'Utilization', icon: 'bar-chart-2', path: '/equipment/utilization', order: 5, parent: 'equip' },
     { id: 'equip-depreciation', label: 'Depreciation', icon: 'trending-down', path: '/equipment/depreciation', order: 6, parent: 'equip' },
     { id: 'equip-work-orders', label: 'Work Orders', icon: 'clipboard', path: '/equipment/work-orders', order: 7, parent: 'equip' },
+    { id: 'equip-pnl', label: 'Equipment P&L', icon: 'dollar-sign', path: '/equipment/pnl', order: 8, parent: 'equip' },
   ],
   dashboardWidgets: [],
   settings: [],
