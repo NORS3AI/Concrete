@@ -1,5 +1,6 @@
 export { payrollManifest } from './manifest';
 export { PayrollService } from './payroll-service';
+export { getPayrollService } from './service-accessor';
 export type {
   EmployeeStatus, EmployeePayType, PayFrequency, Employee,
   TimeEntryPayType, TimeEntry,

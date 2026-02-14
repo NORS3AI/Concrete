@@ -1,7 +1,11 @@
 /**
  * Employee create/edit form view.
  * Full employee details with all fields for creating or editing an employee.
+ * Wired to PayrollService for load, save, and delete.
  */
+
+import { getPayrollService } from '../service-accessor';
+import type { EmployeePayType, PayFrequency, EmployeeStatus } from '../payroll-service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,6 +20,24 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+function getIdFromHash(pattern: RegExp): string | null {
+  const match = window.location.hash.match(pattern);
+  if (match && match[1] !== 'new') return match[1];
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,8 +158,11 @@ export default {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
+    const employeeId = getIdFromHash(/\/payroll\/employees\/([^/?]+)/);
+    const isEdit = employeeId !== null;
+
     const headerRow = el('div', 'flex items-center justify-between mb-6');
-    headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Employee Details'));
+    headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', isEdit ? 'Edit Employee' : 'New Employee'));
     const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', 'Back to Employees') as HTMLAnchorElement;
     backLink.href = '#/payroll/employees';
     headerRow.appendChild(backLink);
@@ -195,12 +220,107 @@ export default {
     taxGrid.appendChild(buildField('Allowances', numberInput('allowances', '0')));
     form.appendChild(taxGrid);
 
+    // Helper to get a form value
+    function getVal(name: string): string {
+      const input = form.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement | null;
+      return input?.value?.trim() ?? '';
+    }
+
+    function getNumVal(name: string): number {
+      return parseFloat(getVal(name)) || 0;
+    }
+
+    // Helper to set form values
+    function setVal(name: string, value: string): void {
+      const input = form.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement | null;
+      if (input) input.value = value;
+    }
+
     // Action buttons
     const btnRow = el('div', 'flex items-center gap-3 mt-6');
     const saveBtn = el('button', 'px-6 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Save Employee');
     saveBtn.type = 'button';
-    saveBtn.addEventListener('click', () => { /* save placeholder */ });
+    saveBtn.addEventListener('click', () => {
+      void (async () => {
+        try {
+          const svc = getPayrollService();
+
+          const data = {
+            firstName: getVal('firstName'),
+            lastName: getVal('lastName'),
+            middleName: getVal('middleName') || undefined,
+            ssn: getVal('ssn'),
+            status: (getVal('status') || 'active') as EmployeeStatus,
+            hireDate: getVal('hireDate'),
+            terminationDate: getVal('terminationDate') || undefined,
+            department: getVal('department') || undefined,
+            jobTitle: getVal('jobTitle') || undefined,
+            payType: (getVal('payType') || 'hourly') as EmployeePayType,
+            payRate: getNumVal('payRate'),
+            payFrequency: (getVal('payFrequency') || 'biweekly') as PayFrequency,
+            federalFilingStatus: getVal('federalFilingStatus') || undefined,
+            stateFilingStatus: getVal('stateFilingStatus') || undefined,
+            allowances: getNumVal('allowances') || undefined,
+            unionId: getVal('unionId') || undefined,
+            wcClassCode: getVal('wcClassCode') || undefined,
+            address: getVal('address') || undefined,
+            city: getVal('city') || undefined,
+            state: getVal('state') || undefined,
+            zip: getVal('zip') || undefined,
+            phone: getVal('phone') || undefined,
+            email: getVal('email') || undefined,
+            emergencyContact: getVal('emergencyContact') || undefined,
+          };
+
+          if (!data.firstName || !data.lastName) {
+            showMsg(wrapper, 'First name and last name are required.', true);
+            return;
+          }
+          if (!data.ssn) {
+            showMsg(wrapper, 'SSN is required.', true);
+            return;
+          }
+          if (!data.hireDate) {
+            showMsg(wrapper, 'Hire date is required.', true);
+            return;
+          }
+
+          if (isEdit && employeeId) {
+            await svc.updateEmployee(employeeId, data);
+            showMsg(wrapper, 'Employee updated successfully.', false);
+          } else {
+            const created = await svc.createEmployee(data);
+            showMsg(wrapper, 'Employee created successfully.', false);
+            // Navigate to edit mode for the created employee
+            window.location.hash = `#/payroll/employees/${created.id}`;
+          }
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Failed to save employee';
+          showMsg(wrapper, message, true);
+        }
+      })();
+    });
     btnRow.appendChild(saveBtn);
+
+    if (isEdit) {
+      const deleteBtn = el('button', 'px-6 py-2 rounded-md text-sm font-medium bg-red-600 text-white hover:opacity-90', 'Delete');
+      deleteBtn.type = 'button';
+      deleteBtn.addEventListener('click', () => {
+        if (!confirm('Are you sure you want to delete this employee?')) return;
+        void (async () => {
+          try {
+            const svc = getPayrollService();
+            await svc.deleteEmployee(employeeId!);
+            showMsg(wrapper, 'Employee deleted.', false);
+            window.location.hash = '#/payroll/employees';
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Failed to delete employee';
+            showMsg(wrapper, message, true);
+          }
+        })();
+      });
+      btnRow.appendChild(deleteBtn);
+    }
 
     const cancelBtn = el('a', 'px-6 py-2 rounded-md text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text)] border border-[var(--border)]', 'Cancel') as HTMLAnchorElement;
     cancelBtn.href = '#/payroll/employees';
@@ -210,5 +330,47 @@ export default {
     card.appendChild(form);
     wrapper.appendChild(card);
     container.appendChild(wrapper);
+
+    // If editing, load existing employee data
+    if (isEdit && employeeId) {
+      void (async () => {
+        try {
+          const svc = getPayrollService();
+          const emp = await svc.getEmployee(employeeId);
+          if (!emp) {
+            showMsg(wrapper, 'Employee not found.', true);
+            return;
+          }
+
+          setVal('firstName', emp.firstName);
+          setVal('lastName', emp.lastName);
+          setVal('middleName', emp.middleName ?? '');
+          setVal('ssn', emp.ssn);
+          setVal('status', emp.status);
+          setVal('hireDate', emp.hireDate);
+          setVal('terminationDate', emp.terminationDate ?? '');
+          setVal('department', emp.department ?? '');
+          setVal('jobTitle', emp.jobTitle ?? '');
+          setVal('unionId', emp.unionId ?? '');
+          setVal('wcClassCode', emp.wcClassCode ?? '');
+          setVal('payType', emp.payType);
+          setVal('payRate', String(emp.payRate));
+          setVal('payFrequency', emp.payFrequency);
+          setVal('federalFilingStatus', emp.federalFilingStatus ?? 'single');
+          setVal('stateFilingStatus', emp.stateFilingStatus ?? 'single');
+          setVal('allowances', String(emp.allowances ?? 0));
+          setVal('address', emp.address ?? '');
+          setVal('city', emp.city ?? '');
+          setVal('state', emp.state ?? '');
+          setVal('zip', emp.zip ?? '');
+          setVal('phone', emp.phone ?? '');
+          setVal('email', emp.email ?? '');
+          setVal('emergencyContact', emp.emergencyContact ?? '');
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Failed to load employee';
+          showMsg(wrapper, message, true);
+        }
+      })();
+    }
   },
 };

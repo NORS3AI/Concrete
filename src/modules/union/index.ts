@@ -1,5 +1,6 @@
 export { unionManifest } from './manifest';
 export { UnionService } from './union-service';
+export { getUnionService } from './service-accessor';
 export type {
   UnionStatus, Union,
   RateTableStatus, RateTable,

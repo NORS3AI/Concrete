@@ -1,5 +1,6 @@
 export { dashboardManifest } from './manifest';
 export { DashboardService } from './dashboard-service';
+export { getDashboardService } from './service-accessor';
 export type {
   DashboardLayout, WidgetType, KPICategory, KPIFormat, KPIStatus,
   TrendDirection, PeriodPreset,

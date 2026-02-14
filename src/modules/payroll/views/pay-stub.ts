@@ -3,7 +3,10 @@
  * Displays a printable pay stub for a selected pay check, showing
  * employee info, earnings breakdown, tax withholdings, deductions,
  * and net pay.
+ * Wired to PayrollService for live data.
  */
+
+import { getPayrollService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,6 +24,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -53,8 +68,10 @@ interface PayStubData {
 // ---------------------------------------------------------------------------
 
 function buildSelector(
+  payRuns: { id: string; label: string }[],
+  onPayRunChange: (payRunId: string) => void,
   onSelect: (payRunId: string, employeeId: string) => void,
-): HTMLElement {
+): { selectorEl: HTMLElement; setEmployees: (employees: { id: string; name: string }[]) => void } {
   const bar = el('div', 'flex flex-wrap items-center gap-3 mb-6');
   const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
 
@@ -63,6 +80,13 @@ function buildSelector(
   const defaultRunOpt = el('option', '', 'Select pay run') as HTMLOptionElement;
   defaultRunOpt.value = '';
   payRunSelect.appendChild(defaultRunOpt);
+
+  for (const run of payRuns) {
+    const opt = el('option', '', run.label) as HTMLOptionElement;
+    opt.value = run.id;
+    payRunSelect.appendChild(opt);
+  }
+
   bar.appendChild(payRunSelect);
 
   bar.appendChild(el('label', 'text-sm font-medium text-[var(--text-muted)]', 'Employee:'));
@@ -71,6 +95,10 @@ function buildSelector(
   defaultEmpOpt.value = '';
   empSelect.appendChild(defaultEmpOpt);
   bar.appendChild(empSelect);
+
+  payRunSelect.addEventListener('change', () => {
+    onPayRunChange(payRunSelect.value);
+  });
 
   const viewBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'View Stub');
   viewBtn.type = 'button';
@@ -82,7 +110,19 @@ function buildSelector(
   printBtn.addEventListener('click', () => window.print());
   bar.appendChild(printBtn);
 
-  return bar;
+  function setEmployees(employees: { id: string; name: string }[]): void {
+    // Clear existing options except the default
+    while (empSelect.options.length > 1) {
+      empSelect.remove(1);
+    }
+    for (const emp of employees) {
+      const opt = el('option', '', emp.name) as HTMLOptionElement;
+      opt.value = emp.id;
+      empSelect.appendChild(opt);
+    }
+  }
+
+  return { selectorEl: bar, setEmployees };
 }
 
 // ---------------------------------------------------------------------------
@@ -236,9 +276,119 @@ export default {
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Pay Stub'));
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildSelector((_payRunId, _employeeId) => { /* load stub placeholder */ }));
-    wrapper.appendChild(buildStub(null));
+    const stubContainer = el('div', '');
+    stubContainer.appendChild(buildStub(null));
 
+    // Load pay runs for the dropdown, then build the selector
+    void (async () => {
+      try {
+        const svc = getPayrollService();
+        const payRuns = await svc.getPayRuns();
+
+        const payRunOptions = payRuns.map((r) => ({
+          id: r.id,
+          label: `${r.periodStart} - ${r.periodEnd} (${r.status})`,
+        }));
+
+        const { selectorEl, setEmployees } = buildSelector(
+          payRunOptions,
+          (payRunId) => {
+            // When pay run changes, load employees that have checks in this run
+            if (!payRunId) {
+              setEmployees([]);
+              return;
+            }
+            void (async () => {
+              try {
+                const svcInner = getPayrollService();
+                const checks = await svcInner.getPayChecksByRun(payRunId);
+                const empMap = new Map<string, string>();
+                for (const check of checks) {
+                  if (!empMap.has(check.employeeId)) {
+                    const emp = await svcInner.getEmployee(check.employeeId);
+                    empMap.set(
+                      check.employeeId,
+                      emp ? `${emp.lastName}, ${emp.firstName}` : check.employeeId,
+                    );
+                  }
+                }
+                const employees = Array.from(empMap.entries()).map(([id, name]) => ({ id, name }));
+                employees.sort((a, b) => a.name.localeCompare(b.name));
+                setEmployees(employees);
+              } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : 'Failed to load employees for pay run';
+                showMsg(wrapper, message, true);
+              }
+            })();
+          },
+          (payRunId, employeeId) => {
+            if (!payRunId || !employeeId) {
+              showMsg(wrapper, 'Please select both a pay run and an employee.', true);
+              return;
+            }
+
+            void (async () => {
+              try {
+                const svcInner = getPayrollService();
+                const payRun = await svcInner.getPayRun(payRunId);
+                if (!payRun) {
+                  showMsg(wrapper, 'Pay run not found.', true);
+                  return;
+                }
+
+                const checks = await svcInner.getPayChecksByRun(payRunId);
+                const check = checks.find((c) => c.employeeId === employeeId);
+                if (!check) {
+                  showMsg(wrapper, 'No pay check found for this employee in this pay run.', true);
+                  return;
+                }
+
+                const emp = await svcInner.getEmployee(employeeId);
+                if (!emp) {
+                  showMsg(wrapper, 'Employee not found.', true);
+                  return;
+                }
+
+                const stubData: PayStubData = {
+                  employeeName: `${emp.firstName} ${emp.lastName}`,
+                  employeeId: emp.id,
+                  ssn: emp.ssn,
+                  address: [emp.address, emp.city, emp.state, emp.zip].filter(Boolean).join(', '),
+                  department: emp.department ?? '',
+                  payPeriod: `${payRun.periodStart} - ${payRun.periodEnd}`,
+                  payDate: payRun.payDate,
+                  grossPay: check.grossPay,
+                  federalTax: check.federalTax,
+                  stateTax: check.stateTax,
+                  localTax: check.localTax,
+                  ficaSS: check.ficaSS,
+                  ficaMed: check.ficaMed,
+                  totalDeductions: check.totalDeductions,
+                  netPay: check.netPay,
+                  hours: check.hours,
+                  overtimeHours: check.overtimeHours,
+                  payRate: emp.payRate,
+                };
+
+                stubContainer.innerHTML = '';
+                stubContainer.appendChild(buildStub(stubData));
+              } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : 'Failed to load pay stub';
+                showMsg(wrapper, message, true);
+              }
+            })();
+          },
+        );
+
+        // Insert selector before stub container
+        wrapper.insertBefore(selectorEl, stubContainer);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load pay runs';
+        showMsg(wrapper, message, true);
+      }
+    })();
+
+    wrapper.appendChild(stubContainer);
     container.appendChild(wrapper);
   },
 };

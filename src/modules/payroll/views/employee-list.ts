@@ -1,7 +1,11 @@
 /**
  * Employee List view.
  * Filterable table of employees with status and department dropdowns.
+ * Wired to PayrollService for live data.
  */
+
+import { getPayrollService } from '../service-accessor';
+import type { EmployeeStatus, EmployeePayType } from '../payroll-service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -19,6 +23,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -182,11 +198,68 @@ export default {
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildFilterBar((_status, _payType, _search) => { /* filter placeholder */ }));
+    const tableContainer = el('div', '');
 
-    const employees: EmployeeRow[] = [];
-    wrapper.appendChild(buildTable(employees));
+    // Current filter state
+    let currentStatus = '';
+    let currentPayType = '';
+    let currentSearch = '';
 
+    async function loadEmployees(): Promise<void> {
+      try {
+        const svc = getPayrollService();
+        const filters: { status?: EmployeeStatus; payType?: EmployeePayType } = {};
+        if (currentStatus) filters.status = currentStatus as EmployeeStatus;
+        if (currentPayType) filters.payType = currentPayType as EmployeePayType;
+
+        let employees = await svc.getEmployees(filters);
+
+        // Client-side search filtering
+        if (currentSearch) {
+          const term = currentSearch.toLowerCase();
+          employees = employees.filter((emp) => {
+            const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+            const dept = (emp.department ?? '').toLowerCase();
+            const title = (emp.jobTitle ?? '').toLowerCase();
+            const email = (emp.email ?? '').toLowerCase();
+            return fullName.includes(term) || dept.includes(term) || title.includes(term) || email.includes(term);
+          });
+        }
+
+        const rows: EmployeeRow[] = employees.map((emp) => ({
+          id: emp.id,
+          firstName: emp.firstName,
+          lastName: emp.lastName,
+          status: emp.status,
+          department: emp.department ?? '',
+          jobTitle: emp.jobTitle ?? '',
+          payType: emp.payType,
+          payRate: emp.payRate,
+          payFrequency: emp.payFrequency,
+          hireDate: emp.hireDate,
+          phone: emp.phone ?? '',
+          email: emp.email ?? '',
+        }));
+
+        tableContainer.innerHTML = '';
+        tableContainer.appendChild(buildTable(rows));
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load employees';
+        showMsg(wrapper, message, true);
+      }
+    }
+
+    wrapper.appendChild(buildFilterBar((status, payType, search) => {
+      currentStatus = status;
+      currentPayType = payType;
+      currentSearch = search;
+      void loadEmployees();
+    }));
+
+    wrapper.appendChild(tableContainer);
     container.appendChild(wrapper);
+
+    // Initial load
+    void loadEmployees();
   },
 };

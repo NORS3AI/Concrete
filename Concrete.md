@@ -736,22 +736,22 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Payroll — construction payroll is uniquely complex
 
-- [ ] Employee master: personal info, hire date, status, department, class, union affiliation
-- [ ] Pay types: Regular, Overtime, Double Time, Premium, Per Diem, Piece Rate, Commission
-- [ ] Earnings/deductions/benefits configuration
-- [ ] Pay frequency: Weekly, Bi-weekly, Semi-monthly, Monthly
-- [ ] Time entry by employee, job, cost code, work classification
-- [ ] Gross-to-net calculation engine
-- [ ] Federal tax tables and withholding
-- [ ] State tax tables (all 50 states + DC)
-- [ ] Local/city tax support
-- [ ] FICA, FUTA, SUTA calculations
-- [ ] Workers' compensation class code assignment and premium tracking
-- [ ] Pay stub generation
-- [ ] Payroll register
-- [ ] Quarterly tax summary (941, 940, state equivalents)
-- [ ] Import time entries from CSV (merge by employee + date + job)
-- [ ] Export payroll data to CSV/JSON
+- [x] Employee master: personal info, hire date, status, department, class, union affiliation
+- [x] Pay types: Regular, Overtime, Double Time, Premium, Per Diem, Piece Rate, Commission
+- [x] Earnings/deductions/benefits configuration
+- [x] Pay frequency: Weekly, Bi-weekly, Semi-monthly, Monthly
+- [x] Time entry by employee, job, cost code, work classification
+- [x] Gross-to-net calculation engine
+- [x] Federal tax tables and withholding
+- [x] State tax tables (all 50 states + DC)
+- [x] Local/city tax support
+- [x] FICA, FUTA, SUTA calculations
+- [x] Workers' compensation class code assignment and premium tracking
+- [x] Pay stub generation
+- [x] Payroll register
+- [x] Quarterly tax summary (941, 940, state equivalents)
+- [x] Import time entries from CSV (merge by employee + date + job)
+- [x] Export payroll data to CSV/JSON
 
 ---
 
@@ -759,19 +759,19 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Union Payroll + Prevailing Wage — critical for public works
 
-- [ ] Union master file (local number, trade, jurisdiction)
-- [ ] Union pay scale tables (base rate, fringe, vacation, training, pension, annuity)
-- [ ] Multi-union support per employee
-- [ ] Prevailing wage rate tables by jurisdiction and classification
-- [ ] Davis-Bacon compliance tracking
-- [ ] Certified payroll report generation (WH-347)
-- [ ] Fringe benefit allocation (cash vs. plan)
-- [ ] Union remittance report generation
-- [ ] Apprentice ratio tracking and compliance
-- [ ] Multi-state, multi-classification support per pay period
-- [ ] Split job costing (different rates per job within same check)
-- [ ] Import union rate tables from CSV
-- [ ] Import prevailing wage schedules from CSV
+- [x] Union master file (local number, trade, jurisdiction)
+- [x] Union pay scale tables (base rate, fringe, vacation, training, pension, annuity)
+- [x] Multi-union support per employee
+- [x] Prevailing wage rate tables by jurisdiction and classification
+- [x] Davis-Bacon compliance tracking
+- [x] Certified payroll report generation (WH-347)
+- [x] Fringe benefit allocation (cash vs. plan)
+- [x] Union remittance report generation
+- [x] Apprentice ratio tracking and compliance
+- [x] Multi-state, multi-classification support per pay period
+- [x] Split job costing (different rates per job within same check)
+- [x] Import union rate tables from CSV
+- [x] Import prevailing wage schedules from CSV
 
 ---
 
@@ -779,20 +779,20 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Equipment Cost
 
-- [ ] Equipment master: ID, description, year, make, model, serial, VIN, license
-- [ ] Equipment categories: Owned, Leased, Rented, Idle
-- [ ] Depreciation tracking (straight-line, MACRS, declining balance)
-- [ ] Equipment rate tables (hourly, daily, weekly, monthly)
-- [ ] Equipment cost posting to jobs by hours/days used
-- [ ] Fuel consumption tracking
-- [ ] Maintenance schedule and work order tracking
-- [ ] Equipment utilization rate analysis
-- [ ] Owning vs operating cost breakdown
-- [ ] Equipment P&L by unit
-- [ ] FHWA rate comparison
-- [ ] GPS/telematics data placeholder (Phase 26+)
-- [ ] Import equipment list from CSV
-- [ ] Export equipment utilization to CSV
+- [x] Equipment master: ID, description, year, make, model, serial, VIN, license
+- [x] Equipment categories: Owned, Leased, Rented, Idle
+- [x] Depreciation tracking (straight-line, MACRS, declining balance)
+- [x] Equipment rate tables (hourly, daily, weekly, monthly)
+- [x] Equipment cost posting to jobs by hours/days used
+- [x] Fuel consumption tracking
+- [x] Maintenance schedule and work order tracking
+- [x] Equipment utilization rate analysis
+- [x] Owning vs operating cost breakdown
+- [x] Equipment P&L by unit
+- [x] FHWA rate comparison
+- [x] GPS/telematics data placeholder (Phase 26+)
+- [x] Import equipment list from CSV
+- [x] Export equipment utilization to CSV
 
 ---
 
@@ -800,20 +800,20 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Subcontract module
 
-- [ ] Subcontractor master (links to vendor)
-- [ ] Subcontract creation: scope, amount, terms, retention %, schedule of values
-- [ ] Change order tracking (additions, deductions, time extensions)
-- [ ] Payment application processing (AIA G702 from sub)
-- [ ] Retention schedule and release tracking
-- [ ] Backcharge tracking and deductions
-- [ ] Insurance certificate tracking with expiration alerts
-- [ ] Prequalification questionnaire tracking
-- [ ] Performance scoring and history
-- [ ] Subcontractor compliance matrix (insurance, license, bond, OSHA, E-Verify)
-- [ ] Lien waiver collection workflow
-- [ ] Bonding capacity tracking
-- [ ] Import subcontracts from CSV
-- [ ] Export sub payment history to CSV
+- [x] Subcontractor master (links to vendor)
+- [x] Subcontract creation: scope, amount, terms, retention %, schedule of values
+- [x] Change order tracking (additions, deductions, time extensions)
+- [x] Payment application processing (AIA G702 from sub)
+- [x] Retention schedule and release tracking
+- [x] Backcharge tracking and deductions
+- [x] Insurance certificate tracking with expiration alerts
+- [x] Prequalification questionnaire tracking
+- [x] Performance scoring and history
+- [x] Subcontractor compliance matrix (insurance, license, bond, OSHA, E-Verify)
+- [x] Lien waiver collection workflow
+- [x] Bonding capacity tracking
+- [x] Import subcontracts from CSV
+- [x] Export sub payment history to CSV
 
 ---
 
@@ -821,19 +821,19 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Purchase Order module
 
-- [ ] Purchase order creation with job/cost code distribution
-- [ ] PO approval workflow
-- [ ] PO types: Standard, Blanket, Service
-- [ ] Committed cost integration with job cost
-- [ ] Three-way matching: PO → Receipt → Invoice
-- [ ] Material receipt tracking
-- [ ] PO change orders and amendments
-- [ ] Vendor price comparison
-- [ ] Buyout tracking (budget vs. committed vs. actual)
-- [ ] Open PO report
-- [ ] PO history by vendor and job
-- [ ] Import PO data from CSV
-- [ ] Export open POs to CSV
+- [x] Purchase order creation with job/cost code distribution
+- [x] PO approval workflow
+- [x] PO types: Standard, Blanket, Service
+- [x] Committed cost integration with job cost
+- [x] Three-way matching: PO → Receipt → Invoice
+- [x] Material receipt tracking
+- [x] PO change orders and amendments
+- [x] Vendor price comparison
+- [x] Buyout tracking (budget vs. committed vs. actual)
+- [x] Open PO report
+- [x] PO history by vendor and job
+- [x] Import PO data from CSV
+- [x] Export open POs to CSV
 
 ---
 
@@ -841,21 +841,21 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Financial Reports + WIP
 
-- [ ] Balance Sheet (standard, comparative, consolidated)
-- [ ] Income Statement (standard, by job, by entity, comparative)
-- [ ] Cash Flow Statement (direct and indirect method)
-- [ ] WIP Schedule (cost method, units method, efforts method)
-- [ ] Job cost detail and summary reports
-- [ ] Aged AP and AR reports
-- [ ] Payroll summary and detail reports
-- [ ] Equipment utilization and cost reports
-- [ ] Custom report builder (drag-and-drop columns, filters, grouping)
-- [ ] Report scheduling (Phase 16+)
-- [ ] Report templates library
-- [ ] Export all reports to PDF/CSV/Excel
-- [ ] Comparative period analysis (month, quarter, year, YTD)
-- [ ] Consolidated vs. entity-level toggle
-- [ ] Bonding capacity analysis report (for surety)
+- [x] Balance Sheet (standard, comparative, consolidated)
+- [x] Income Statement (standard, by job, by entity, comparative)
+- [x] Cash Flow Statement (direct and indirect method)
+- [x] WIP Schedule (cost method, units method, efforts method)
+- [x] Job cost detail and summary reports
+- [x] Aged AP and AR reports
+- [x] Payroll summary and detail reports
+- [x] Equipment utilization and cost reports
+- [x] Custom report builder (drag-and-drop columns, filters, grouping)
+- [x] Report scheduling (Phase 16+)
+- [x] Report templates library
+- [x] Export all reports to PDF/CSV/Excel
+- [x] Comparative period analysis (month, quarter, year, YTD)
+- [x] Consolidated vs. entity-level toggle
+- [x] Bonding capacity analysis report (for surety)
 
 ---
 
@@ -863,20 +863,20 @@ plugin/customField    plugin/script
 
 > Extends current Concrete dashboard with construction-specific metrics
 
-- [ ] Executive dashboard: revenue, backlog, GP%, WIP, cash position
-- [ ] Job performance dashboard: top/bottom jobs, margin trends, fade analysis
-- [ ] Cash flow forecasting: project-based cash flow projections
-- [ ] Backlog analysis: awarded vs. completed vs. remaining
-- [ ] Equipment utilization dashboard
-- [ ] Payroll burden analysis
-- [ ] Subcontractor exposure dashboard
-- [ ] Safety metrics (TRIR, DART, EMR) — placeholder data entry
-- [ ] Bonding capacity utilization
-- [ ] Revenue recognition trend (over/under billing)
-- [ ] Configurable KPI cards with thresholds and alerts
-- [ ] Drill-down from any KPI to underlying transactions
-- [ ] Period comparison (MTD, QTD, YTD, Last 12, Custom)
-- [ ] Entity filter on all dashboards
+- [x] Executive dashboard: revenue, backlog, GP%, WIP, cash position
+- [x] Job performance dashboard: top/bottom jobs, margin trends, fade analysis
+- [x] Cash flow forecasting: project-based cash flow projections
+- [x] Backlog analysis: awarded vs. completed vs. remaining
+- [x] Equipment utilization dashboard
+- [x] Payroll burden analysis
+- [x] Subcontractor exposure dashboard
+- [x] Safety metrics (TRIR, DART, EMR) — placeholder data entry
+- [x] Bonding capacity utilization
+- [x] Revenue recognition trend (over/under billing)
+- [x] Configurable KPI cards with thresholds and alerts
+- [x] Drill-down from any KPI to underlying transactions
+- [x] Period comparison (MTD, QTD, YTD, Last 12, Custom)
+- [x] Entity filter on all dashboards
 
 ---
 
@@ -884,19 +884,19 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Estimating module
 
-- [ ] Estimate creation linked to job
-- [ ] Assembly/item-based estimating
-- [ ] Labor, material, equipment, sub cost buildup
-- [ ] Markup and margin configuration (per item, per category, overall)
-- [ ] Alternates and allowances
-- [ ] Bid day tracking (bid date, pre-bid, addenda)
-- [ ] Subcontractor bid solicitation and tabulation
-- [ ] Estimate-to-budget transfer (creates job budget from winning estimate)
-- [ ] Historical cost database from actual job costs
-- [ ] Win/loss tracking and analysis
-- [ ] Estimate revision history
-- [ ] Import estimate items from CSV
-- [ ] Export estimate to CSV/PDF
+- [x] Estimate creation linked to job
+- [x] Assembly/item-based estimating
+- [x] Labor, material, equipment, sub cost buildup
+- [x] Markup and margin configuration (per item, per category, overall)
+- [x] Alternates and allowances
+- [x] Bid day tracking (bid date, pre-bid, addenda)
+- [x] Subcontractor bid solicitation and tabulation
+- [x] Estimate-to-budget transfer (creates job budget from winning estimate)
+- [x] Historical cost database from actual job costs
+- [x] Win/loss tracking and analysis
+- [x] Estimate revision history
+- [x] Import estimate items from CSV
+- [x] Export estimate to CSV/PDF
 
 ---
 

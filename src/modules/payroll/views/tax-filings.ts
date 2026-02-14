@@ -2,7 +2,11 @@
  * Tax Filings view.
  * Management of quarterly tax filings (941, 940, state quarterly) with
  * summary cards and filing status tracking.
+ * Wired to PayrollService for live data.
  */
+
+import { getPayrollService } from '../service-accessor';
+import type { TaxFilingType, TaxFilingStatus } from '../payroll-service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -20,6 +24,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -66,8 +82,8 @@ interface TaxFilingRow {
 // ---------------------------------------------------------------------------
 
 function buildFilterBar(
-  onFilter: (type: string, status: string) => void,
-): HTMLElement {
+  onFilter: (type: string, status: string, year: string) => void,
+): { bar: HTMLElement; getYear: () => string } {
   const bar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
   const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
 
@@ -92,28 +108,29 @@ function buildFilterBar(
   yearInput.placeholder = 'Year';
   yearInput.min = '2020';
   yearInput.max = '2030';
+  yearInput.value = String(new Date().getFullYear());
   bar.appendChild(yearInput);
 
-  const fire = () => onFilter(typeSelect.value, statusSelect.value);
+  const fire = () => onFilter(typeSelect.value, statusSelect.value, yearInput.value);
   typeSelect.addEventListener('change', fire);
   statusSelect.addEventListener('change', fire);
   yearInput.addEventListener('change', fire);
 
-  return bar;
+  return { bar, getYear: () => yearInput.value };
 }
 
 // ---------------------------------------------------------------------------
 // Quarterly Summary
 // ---------------------------------------------------------------------------
 
-function buildQuarterlySummary(): HTMLElement {
+function buildQuarterlySummary(summaries: { quarter: number; wages: string; tax: string }[]): HTMLElement {
   const grid = el('div', 'grid grid-cols-4 gap-4 mb-6');
 
-  for (let q = 1; q <= 4; q++) {
+  for (const summary of summaries) {
     const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4');
-    card.appendChild(el('div', 'text-xs text-[var(--text-muted)] mb-1', `Q${q}`));
-    card.appendChild(el('div', 'text-sm font-medium text-[var(--text)]', 'Wages: $0.00'));
-    card.appendChild(el('div', 'text-sm font-medium text-[var(--text)]', 'Tax: $0.00'));
+    card.appendChild(el('div', 'text-xs text-[var(--text-muted)] mb-1', `Q${summary.quarter}`));
+    card.appendChild(el('div', 'text-sm font-medium text-[var(--text)]', `Wages: ${summary.wages}`));
+    card.appendChild(el('div', 'text-sm font-medium text-[var(--text)]', `Tax: ${summary.tax}`));
     grid.appendChild(card);
   }
 
@@ -124,7 +141,7 @@ function buildQuarterlySummary(): HTMLElement {
 // Table
 // ---------------------------------------------------------------------------
 
-function buildTable(filings: TaxFilingRow[]): HTMLElement {
+function buildTable(filings: TaxFilingRow[], onMarkFiled: (id: string) => void): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -168,7 +185,7 @@ function buildTable(filings: TaxFilingRow[]): HTMLElement {
     const tdActions = el('td', 'py-2 px-3');
     if (filing.status === 'draft') {
       const fileBtn = el('button', 'text-[var(--accent)] hover:underline text-sm', 'Mark Filed');
-      fileBtn.addEventListener('click', () => { /* mark filed placeholder */ });
+      fileBtn.addEventListener('click', () => onMarkFiled(filing.id));
       tdActions.appendChild(fileBtn);
     }
     tr.appendChild(tdActions);
@@ -195,16 +212,124 @@ export default {
 
     const newBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'New Filing');
     newBtn.type = 'button';
-    newBtn.addEventListener('click', () => { /* new filing placeholder */ });
+    newBtn.addEventListener('click', () => {
+      void (async () => {
+        try {
+          const svc = getPayrollService();
+          const year = parseInt(currentYear, 10) || new Date().getFullYear();
+          const quarter = Math.ceil((new Date().getMonth() + 1) / 3);
+          await svc.createTaxFiling({
+            type: '941',
+            period: `Q${quarter} ${year}`,
+            year,
+            quarter,
+            status: 'draft',
+            totalWages: 0,
+            totalTax: 0,
+          });
+          showMsg(wrapper, 'Tax filing created.', false);
+          void loadFilings();
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Failed to create filing';
+          showMsg(wrapper, message, true);
+        }
+      })();
+    });
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildQuarterlySummary());
-    wrapper.appendChild(buildFilterBar((_type, _status) => { /* filter placeholder */ }));
+    const summaryContainer = el('div', '');
+    const tableContainer = el('div', '');
+    let currentType = '';
+    let currentStatus = '';
+    let currentYear = String(new Date().getFullYear());
 
-    const filings: TaxFilingRow[] = [];
-    wrapper.appendChild(buildTable(filings));
+    async function loadQuarterlySummary(): Promise<void> {
+      try {
+        const svc = getPayrollService();
+        const year = parseInt(currentYear, 10) || new Date().getFullYear();
+        const summaries = [];
+        for (let q = 1; q <= 4; q++) {
+          const summary = await svc.getQuarterlyTaxSummary(year, q);
+          summaries.push({
+            quarter: q,
+            wages: fmtCurrency(summary.totalWages),
+            tax: fmtCurrency(
+              summary.totalFederalTax + summary.totalStateTax + summary.totalLocalTax
+              + summary.totalFicaSS + summary.totalFicaMed,
+            ),
+          });
+        }
+        summaryContainer.innerHTML = '';
+        summaryContainer.appendChild(buildQuarterlySummary(summaries));
+      } catch {
+        // If summary fails, show zeroes
+        summaryContainer.innerHTML = '';
+        summaryContainer.appendChild(buildQuarterlySummary(
+          [1, 2, 3, 4].map((q) => ({ quarter: q, wages: '$0.00', tax: '$0.00' })),
+        ));
+      }
+    }
 
+    async function loadFilings(): Promise<void> {
+      try {
+        const svc = getPayrollService();
+        const filters: { type?: TaxFilingType; status?: TaxFilingStatus; year?: number } = {};
+        if (currentType) filters.type = currentType as TaxFilingType;
+        if (currentStatus) filters.status = currentStatus as TaxFilingStatus;
+        const year = parseInt(currentYear, 10);
+        if (year) filters.year = year;
+
+        const filings = await svc.getTaxFilings(filters);
+
+        const rows: TaxFilingRow[] = filings.map((f) => ({
+          id: f.id,
+          type: f.type,
+          period: f.period,
+          year: f.year,
+          quarter: f.quarter ?? 0,
+          status: f.status,
+          totalWages: f.totalWages,
+          totalTax: f.totalTax,
+          dueDate: f.dueDate ?? '',
+        }));
+
+        tableContainer.innerHTML = '';
+        tableContainer.appendChild(buildTable(rows, (id) => {
+          void (async () => {
+            try {
+              const svcInner = getPayrollService();
+              await svcInner.updateTaxFiling(id, { status: 'filed' });
+              showMsg(wrapper, 'Filing marked as filed.', false);
+              void loadFilings();
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : 'Failed to update filing';
+              showMsg(wrapper, message, true);
+            }
+          })();
+        }));
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load filings';
+        showMsg(wrapper, message, true);
+      }
+    }
+
+    wrapper.appendChild(summaryContainer);
+
+    const { bar } = buildFilterBar((type, status, year) => {
+      currentType = type;
+      currentStatus = status;
+      currentYear = year;
+      void loadFilings();
+      void loadQuarterlySummary();
+    });
+    wrapper.appendChild(bar);
+
+    wrapper.appendChild(tableContainer);
     container.appendChild(wrapper);
+
+    // Initial load
+    void loadQuarterlySummary();
+    void loadFilings();
   },
 };
