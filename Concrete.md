@@ -1117,19 +1117,19 @@ plugin/customField    plugin/script
 
 > Critical for construction: surety and insurance management
 
-- [ ] Surety company and agent master
-- [ ] Bonding capacity tracking (single job limit, aggregate)
-- [ ] Bond issuance log (bid bond, performance bond, payment bond)
-- [ ] WIP-adjusted bonding analysis
-- [ ] Insurance policy master (GL, auto, umbrella, workers comp, builder's risk, professional)
-- [ ] Policy expiration alerts
-- [ ] Certificate of insurance (COI) issuance tracking
-- [ ] Subcontractor insurance compliance tracking
-- [ ] OCIP/CCIP (wrap-up) program tracking
-- [ ] Loss run tracking
-- [ ] Claims log
-- [ ] Insurance cost allocation to jobs
-- [ ] Export bonding analysis for surety submissions
+- [x] Surety company and agent master
+- [x] Bonding capacity tracking (single job limit, aggregate)
+- [x] Bond issuance log (bid bond, performance bond, payment bond)
+- [x] WIP-adjusted bonding analysis
+- [x] Insurance policy master (GL, auto, umbrella, workers comp, builder's risk, professional)
+- [x] Policy expiration alerts
+- [x] Certificate of insurance (COI) issuance tracking
+- [x] Subcontractor insurance compliance tracking
+- [x] OCIP/CCIP (wrap-up) program tracking
+- [x] Loss run tracking
+- [x] Claims log
+- [x] Insurance cost allocation to jobs
+- [x] Export bonding analysis for surety submissions
 
 ---
 
@@ -1137,19 +1137,19 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Bank Reconciliation
 
-- [ ] Bank account master
-- [ ] Bank statement import (CSV, OFX, QFX, BAI2)
-- [ ] Auto-matching: statement lines to GL transactions
-- [ ] Manual matching and adjustment
-- [ ] Reconciliation report with outstanding items
-- [ ] Cash position dashboard across all accounts
-- [ ] Cash flow projection: committed in/out by date
-- [ ] Positive pay file generation
-- [ ] ACH file generation (NACHA format)
-- [ ] Void and reissue check workflow
-- [ ] Credit card transaction import and coding
-- [ ] Petty cash tracking
-- [ ] Trust account management (for owners who require)
+- [x] Bank account master
+- [x] Bank statement import (CSV, OFX, QFX, BAI2)
+- [x] Auto-matching: statement lines to GL transactions
+- [x] Manual matching and adjustment
+- [x] Reconciliation report with outstanding items
+- [x] Cash position dashboard across all accounts
+- [x] Cash flow projection: committed in/out by date
+- [x] Positive pay file generation
+- [x] ACH file generation (NACHA format)
+- [x] Void and reissue check workflow
+- [x] Credit card transaction import and coding
+- [x] Petty cash tracking
+- [x] Trust account management (for owners who require)
 
 ---
 
@@ -1157,19 +1157,19 @@ plugin/customField    plugin/script
 
 > Get data from the field in real time
 
-- [ ] Progressive Web App (PWA) with offline capability
-- [ ] Mobile time entry by employee (GPS stamp optional)
-- [ ] Mobile daily log with photo capture
-- [ ] Mobile safety inspection checklists
-- [ ] Mobile material receipt
-- [ ] Mobile equipment hours logging
-- [ ] Foreman time entry (crew-based)
-- [ ] Field work order completion
-- [ ] Offline queue with sync on reconnect
-- [ ] Push notifications for approvals, alerts, assignments
-- [ ] QR code scanning for equipment and materials
-- [ ] Digital signature capture (T&M tickets, delivery receipts)
-- [ ] Bandwidth-optimized sync (delta updates only)
+- [x] Progressive Web App (PWA) with offline capability
+- [x] Mobile time entry by employee (GPS stamp optional)
+- [x] Mobile daily log with photo capture
+- [x] Mobile safety inspection checklists
+- [x] Mobile material receipt
+- [x] Mobile equipment hours logging
+- [x] Foreman time entry (crew-based)
+- [x] Field work order completion
+- [x] Offline queue with sync on reconnect
+- [x] Push notifications for approvals, alerts, assignments
+- [x] QR code scanning for equipment and materials
+- [x] Digital signature capture (T&M tickets, delivery receipts)
+- [x] Bandwidth-optimized sync (delta updates only)
 
 ---
 
@@ -1177,18 +1177,18 @@ plugin/customField    plugin/script
 
 > Handle 1,000,000 employees across spotty job-site connectivity
 
-- [ ] CRDT-based conflict resolution for concurrent edits
-- [ ] Cloudflare Durable Objects for real-time collaboration
-- [ ] WebSocket connections for live updates
-- [ ] IndexedDB local database with full query capability
-- [ ] Background sync via Service Worker
-- [ ] Conflict resolution UI (manual merge for complex conflicts)
-- [ ] Sync priority: payroll > billing > job cost > documents
-- [ ] Bandwidth throttling awareness (2G/3G/LTE detection)
-- [ ] Selective sync (only relevant jobs/entities for field users)
-- [ ] Sync status indicators throughout UI
-- [ ] Data integrity verification (checksums)
-- [ ] Automatic retry with exponential backoff
+- [x] CRDT-based conflict resolution for concurrent edits
+- [x] Cloudflare Durable Objects for real-time collaboration
+- [x] WebSocket connections for live updates
+- [x] IndexedDB local database with full query capability
+- [x] Background sync via Service Worker
+- [x] Conflict resolution UI (manual merge for complex conflicts)
+- [x] Sync priority: payroll > billing > job cost > documents
+- [x] Bandwidth throttling awareness (2G/3G/LTE detection)
+- [x] Selective sync (only relevant jobs/entities for field users)
+- [x] Sync status indicators throughout UI
+- [x] Data integrity verification (checksums)
+- [x] Automatic retry with exponential backoff
 
 ---
 
@@ -1196,18 +1196,18 @@ plugin/customField    plugin/script
 
 > Configurable approval chains for enterprise scale
 
-- [ ] Workflow template builder (visual flow editor)
-- [ ] Approval types: Sequential, Parallel, Conditional
-- [ ] Threshold-based routing (e.g., PO > $50K requires VP approval)
-- [ ] Role-based and user-based approvals
-- [ ] Delegation and out-of-office routing
-- [ ] Email/push notification on pending approvals
-- [ ] Approval history and audit trail
-- [ ] Escalation rules (auto-escalate after N days)
-- [ ] Workflow templates: AP invoice, PO, change order, time entry, expense report
-- [ ] Custom workflow creation for any record type
-- [ ] Bulk approval for high-volume processors
-- [ ] Mobile approval interface
+- [x] Workflow template builder (visual flow editor)
+- [x] Approval types: Sequential, Parallel, Conditional
+- [x] Threshold-based routing (e.g., PO > $50K requires VP approval)
+- [x] Role-based and user-based approvals
+- [x] Delegation and out-of-office routing
+- [x] Email/push notification on pending approvals
+- [x] Approval history and audit trail
+- [x] Escalation rules (auto-escalate after N days)
+- [x] Workflow templates: AP invoice, PO, change order, time entry, expense report
+- [x] Custom workflow creation for any record type
+- [x] Bulk approval for high-volume processors
+- [x] Mobile approval interface
 
 ---
 
@@ -1215,18 +1215,18 @@ plugin/customField    plugin/script
 
 > Multi-entity financial management at scale
 
-- [ ] Intercompany transaction types: billing, loan, allocation, transfer
-- [ ] Automatic elimination entries on consolidation
-- [ ] Transfer pricing rules
-- [ ] Shared services allocation (by headcount, revenue, square footage, custom)
-- [ ] Management fee calculation and posting
-- [ ] Consolidated trial balance
-- [ ] Consolidated financial statements with minority interest
-- [ ] Currency translation (for international operations)
-- [ ] Intercompany reconciliation report
-- [ ] Segment reporting
-- [ ] Elimination journal review and approval
-- [ ] Entity-level vs. consolidated reporting toggle
+- [x] Intercompany transaction types: billing, loan, allocation, transfer
+- [x] Automatic elimination entries on consolidation
+- [x] Transfer pricing rules
+- [x] Shared services allocation (by headcount, revenue, square footage, custom)
+- [x] Management fee calculation and posting
+- [x] Consolidated trial balance
+- [x] Consolidated financial statements with minority interest
+- [x] Currency translation (for international operations)
+- [x] Intercompany reconciliation report
+- [x] Segment reporting
+- [x] Elimination journal review and approval
+- [x] Entity-level vs. consolidated reporting toggle
 
 ---
 
@@ -1234,20 +1234,20 @@ plugin/customField    plugin/script
 
 > Beyond reports: insights and predictions
 
-- [ ] Drag-and-drop analytics builder
-- [ ] Pre-built construction KPI library (50+ metrics)
-- [ ] Job fade analysis (margin erosion over project life)
-- [ ] Predictive cash flow modeling
-- [ ] Revenue forecasting by job/entity/division
-- [ ] Labor productivity analysis (cost per unit, hours per unit)
-- [ ] Equipment ROI analysis
-- [ ] Vendor performance scoring
-- [ ] Employee retention and turnover analysis
-- [ ] What-if scenario modeling
-- [ ] Benchmark comparison (anonymized cross-tenant, opt-in)
-- [ ] Custom dashboard creation per user/role
-- [ ] Scheduled report delivery (email/Slack/webhook)
-- [ ] Data warehouse export for third-party BI tools
+- [x] Drag-and-drop analytics builder
+- [x] Pre-built construction KPI library (50+ metrics)
+- [x] Job fade analysis (margin erosion over project life)
+- [x] Predictive cash flow modeling
+- [x] Revenue forecasting by job/entity/division
+- [x] Labor productivity analysis (cost per unit, hours per unit)
+- [x] Equipment ROI analysis
+- [x] Vendor performance scoring
+- [x] Employee retention and turnover analysis
+- [x] What-if scenario modeling
+- [x] Benchmark comparison (anonymized cross-tenant, opt-in)
+- [x] Custom dashboard creation per user/role
+- [x] Scheduled report delivery (email/Slack/webhook)
+- [x] Data warehouse export for third-party BI tools
 
 ---
 
