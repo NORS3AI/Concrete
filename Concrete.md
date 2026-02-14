@@ -821,19 +821,19 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Purchase Order module
 
-- [ ] Purchase order creation with job/cost code distribution
-- [ ] PO approval workflow
-- [ ] PO types: Standard, Blanket, Service
-- [ ] Committed cost integration with job cost
-- [ ] Three-way matching: PO → Receipt → Invoice
-- [ ] Material receipt tracking
-- [ ] PO change orders and amendments
-- [ ] Vendor price comparison
-- [ ] Buyout tracking (budget vs. committed vs. actual)
-- [ ] Open PO report
-- [ ] PO history by vendor and job
-- [ ] Import PO data from CSV
-- [ ] Export open POs to CSV
+- [x] Purchase order creation with job/cost code distribution
+- [x] PO approval workflow
+- [x] PO types: Standard, Blanket, Service
+- [x] Committed cost integration with job cost
+- [x] Three-way matching: PO → Receipt → Invoice
+- [x] Material receipt tracking
+- [x] PO change orders and amendments
+- [x] Vendor price comparison
+- [x] Buyout tracking (budget vs. committed vs. actual)
+- [x] Open PO report
+- [x] PO history by vendor and job
+- [x] Import PO data from CSV
+- [x] Export open POs to CSV
 
 ---
 
