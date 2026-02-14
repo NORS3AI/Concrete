@@ -2,7 +2,11 @@
  * Time Entry view.
  * Table of time entries with filters for employee, date range, and approval status.
  * Supports creating new entries and approving pending ones.
+ * Wired to PayrollService for live data.
  */
+
+import { getPayrollService } from '../service-accessor';
+import type { TimeEntryPayType } from '../payroll-service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -17,6 +21,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -67,8 +83,8 @@ interface TimeEntryRow {
 // ---------------------------------------------------------------------------
 
 function buildFilterBar(
-  onFilter: (payType: string, approval: string, search: string) => void,
-): HTMLElement {
+  onFilter: (payType: string, approval: string, search: string, startDate: string, endDate: string) => void,
+): { bar: HTMLElement; getStartDate: () => string; getEndDate: () => string } {
   const bar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
   const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
 
@@ -103,21 +119,21 @@ function buildFilterBar(
   endDate.title = 'End date';
   bar.appendChild(endDate);
 
-  const fire = () => onFilter(payTypeSelect.value, approvalSelect.value, searchInput.value);
+  const fire = () => onFilter(payTypeSelect.value, approvalSelect.value, searchInput.value, startDate.value, endDate.value);
   payTypeSelect.addEventListener('change', fire);
   approvalSelect.addEventListener('change', fire);
   searchInput.addEventListener('input', fire);
   startDate.addEventListener('change', fire);
   endDate.addEventListener('change', fire);
 
-  return bar;
+  return { bar, getStartDate: () => startDate.value, getEndDate: () => endDate.value };
 }
 
 // ---------------------------------------------------------------------------
 // Table
 // ---------------------------------------------------------------------------
 
-function buildTable(entries: TimeEntryRow[]): HTMLElement {
+function buildTable(entries: TimeEntryRow[], onApprove: (id: string) => void): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -159,7 +175,7 @@ function buildTable(entries: TimeEntryRow[]): HTMLElement {
     const tdActions = el('td', 'py-2 px-3');
     if (!entry.approved) {
       const approveBtn = el('button', 'text-[var(--accent)] hover:underline text-sm', 'Approve');
-      approveBtn.addEventListener('click', () => { /* approve placeholder */ });
+      approveBtn.addEventListener('click', () => onApprove(entry.id));
       tdActions.appendChild(approveBtn);
     }
     tr.appendChild(tdActions);
@@ -176,7 +192,17 @@ function buildTable(entries: TimeEntryRow[]): HTMLElement {
 // New Time Entry Form
 // ---------------------------------------------------------------------------
 
-function buildNewEntryForm(): HTMLElement {
+function buildNewEntryForm(
+  onAdd: (data: {
+    employeeId: string;
+    date: string;
+    hours: number;
+    payType: TimeEntryPayType;
+    jobId?: string;
+    costCodeId?: string;
+    workClassification?: string;
+  }) => void,
+): HTMLElement {
   const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4 mb-4');
   card.appendChild(el('h3', 'text-sm font-semibold text-[var(--text)] mb-3', 'New Time Entry'));
 
@@ -188,10 +214,10 @@ function buildNewEntryForm(): HTMLElement {
   empInput.name = 'employeeId';
   grid.appendChild(empInput);
 
-  const dateInput = el('input', inputCls) as HTMLInputElement;
-  dateInput.type = 'date';
-  dateInput.name = 'date';
-  grid.appendChild(dateInput);
+  const dateInputEl = el('input', inputCls) as HTMLInputElement;
+  dateInputEl.type = 'date';
+  dateInputEl.name = 'date';
+  grid.appendChild(dateInputEl);
 
   const hoursInput = el('input', inputCls) as HTMLInputElement;
   hoursInput.type = 'number';
@@ -226,7 +252,32 @@ function buildNewEntryForm(): HTMLElement {
 
   const addBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Add Entry');
   addBtn.type = 'button';
-  addBtn.addEventListener('click', () => { /* add entry placeholder */ });
+  addBtn.addEventListener('click', () => {
+    const employeeId = empInput.value.trim();
+    const date = dateInputEl.value;
+    const hours = parseFloat(hoursInput.value) || 0;
+    const payType = payTypeSelect.value as TimeEntryPayType;
+
+    if (!employeeId || !date || hours <= 0) return;
+
+    onAdd({
+      employeeId,
+      date,
+      hours,
+      payType,
+      jobId: jobInput.value.trim() || undefined,
+      costCodeId: costCodeInput.value.trim() || undefined,
+      workClassification: classInput.value.trim() || undefined,
+    });
+
+    // Clear form
+    empInput.value = '';
+    dateInputEl.value = '';
+    hoursInput.value = '';
+    jobInput.value = '';
+    costCodeInput.value = '';
+    classInput.value = '';
+  });
   grid.appendChild(addBtn);
 
   card.appendChild(grid);
@@ -246,12 +297,139 @@ export default {
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Time Entry'));
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildNewEntryForm());
-    wrapper.appendChild(buildFilterBar((_payType, _approval, _search) => { /* filter placeholder */ }));
+    const tableContainer = el('div', '');
 
-    const entries: TimeEntryRow[] = [];
-    wrapper.appendChild(buildTable(entries));
+    // Employee name cache
+    const empNameCache = new Map<string, string>();
 
+    // Current filter state
+    let currentPayType = '';
+    let currentApproval = '';
+    let currentSearch = '';
+    let currentStartDate = '';
+    let currentEndDate = '';
+
+    async function resolveEmployeeName(empId: string): Promise<string> {
+      if (empNameCache.has(empId)) return empNameCache.get(empId)!;
+      try {
+        const svc = getPayrollService();
+        const emp = await svc.getEmployee(empId);
+        const name = emp ? `${emp.lastName}, ${emp.firstName}` : empId;
+        empNameCache.set(empId, name);
+        return name;
+      } catch {
+        return empId;
+      }
+    }
+
+    async function loadEntries(): Promise<void> {
+      try {
+        const svc = getPayrollService();
+
+        let entries;
+        if (currentStartDate && currentEndDate) {
+          entries = await svc.getTimeEntriesByDateRange(currentStartDate, currentEndDate);
+        } else {
+          // Load all time entries (fetch all employees and their entries)
+          const employees = await svc.getEmployees();
+          const allEntries = [];
+          for (const emp of employees) {
+            const empEntries = await svc.getTimeEntriesByEmployee(emp.id);
+            allEntries.push(...empEntries);
+          }
+          entries = allEntries;
+        }
+
+        // Apply filters
+        if (currentPayType) {
+          entries = entries.filter((e) => e.payType === currentPayType);
+        }
+        if (currentApproval === 'approved') {
+          entries = entries.filter((e) => e.approved);
+        } else if (currentApproval === 'pending') {
+          entries = entries.filter((e) => !e.approved);
+        }
+        if (currentSearch) {
+          const term = currentSearch.toLowerCase();
+          entries = entries.filter((e) => {
+            const empName = empNameCache.get(e.employeeId)?.toLowerCase() ?? '';
+            return empName.includes(term) || e.employeeId.toLowerCase().includes(term)
+              || (e.description ?? '').toLowerCase().includes(term)
+              || (e.jobId ?? '').toLowerCase().includes(term);
+          });
+        }
+
+        // Sort by date descending
+        entries.sort((a, b) => b.date.localeCompare(a.date));
+
+        // Resolve employee names
+        const rows: TimeEntryRow[] = [];
+        for (const entry of entries) {
+          const empName = await resolveEmployeeName(entry.employeeId);
+          rows.push({
+            id: entry.id,
+            employeeId: entry.employeeId,
+            employeeName: empName,
+            jobId: entry.jobId ?? '',
+            costCodeId: entry.costCodeId ?? '',
+            date: entry.date,
+            hours: entry.hours,
+            payType: entry.payType,
+            workClassification: entry.workClassification ?? '',
+            description: entry.description ?? '',
+            approved: entry.approved,
+            approvedBy: entry.approvedBy ?? '',
+          });
+        }
+
+        tableContainer.innerHTML = '';
+        tableContainer.appendChild(buildTable(rows, (id) => {
+          void (async () => {
+            try {
+              const svcInner = getPayrollService();
+              await svcInner.approveTimeEntry(id, 'admin');
+              showMsg(wrapper, 'Time entry approved.', false);
+              void loadEntries();
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : 'Failed to approve entry';
+              showMsg(wrapper, message, true);
+            }
+          })();
+        }));
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load time entries';
+        showMsg(wrapper, message, true);
+      }
+    }
+
+    wrapper.appendChild(buildNewEntryForm((data) => {
+      void (async () => {
+        try {
+          const svc = getPayrollService();
+          await svc.createTimeEntry(data);
+          showMsg(wrapper, 'Time entry created.', false);
+          void loadEntries();
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Failed to create time entry';
+          showMsg(wrapper, message, true);
+        }
+      })();
+    }));
+
+    const { bar } = buildFilterBar((payType, approval, search, startDate, endDate) => {
+      currentPayType = payType;
+      currentApproval = approval;
+      currentSearch = search;
+      currentStartDate = startDate;
+      currentEndDate = endDate;
+      void loadEntries();
+    });
+    wrapper.appendChild(bar);
+
+    wrapper.appendChild(tableContainer);
     container.appendChild(wrapper);
+
+    // Initial load
+    void loadEntries();
   },
 };

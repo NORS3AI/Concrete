@@ -2,7 +2,13 @@
  * Earnings / Deductions / Benefits Configuration view.
  * Three tabbed sections for managing earning types, deduction configurations,
  * and benefit plan configurations.
+ * Wired to PayrollService for live data.
  */
+
+import { getPayrollService } from '../service-accessor';
+import type {
+  EarningType, DeductionType, CalcMethod, BenefitType,
+} from '../payroll-service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -20,6 +26,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -123,7 +141,11 @@ function buildTabBar(activeTab: string, onSwitch: (tab: string) => void): HTMLEl
 // Earnings Section
 // ---------------------------------------------------------------------------
 
-function buildEarningsSection(earnings: EarningRow[]): HTMLElement {
+function buildEarningsSection(
+  earnings: EarningRow[],
+  onAdd: (data: { name: string; code: string; type: EarningType; multiplier: number }) => void,
+  onDelete: (id: string) => void,
+): HTMLElement {
   const section = el('div', '');
   const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
 
@@ -157,7 +179,20 @@ function buildEarningsSection(earnings: EarningRow[]): HTMLElement {
 
   const addBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Add');
   addBtn.type = 'button';
-  addBtn.addEventListener('click', () => { /* add placeholder */ });
+  addBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    const code = codeInput.value.trim();
+    if (!name || !code) return;
+    onAdd({
+      name,
+      code,
+      type: typeSelect.value as EarningType,
+      multiplier: parseFloat(multInput.value) || 1.0,
+    });
+    nameInput.value = '';
+    codeInput.value = '';
+    multInput.value = '1.0';
+  });
   grid.appendChild(addBtn);
 
   card.appendChild(grid);
@@ -194,7 +229,7 @@ function buildEarningsSection(earnings: EarningRow[]): HTMLElement {
     tr.appendChild(el('td', 'py-2 px-3', earning.isOvertime ? 'Yes' : 'No'));
     const tdActions = el('td', 'py-2 px-3');
     const deleteBtn = el('button', 'text-red-400 hover:underline text-sm', 'Delete');
-    deleteBtn.addEventListener('click', () => { /* delete placeholder */ });
+    deleteBtn.addEventListener('click', () => onDelete(earning.id));
     tdActions.appendChild(deleteBtn);
     tr.appendChild(tdActions);
     tbody.appendChild(tr);
@@ -211,7 +246,11 @@ function buildEarningsSection(earnings: EarningRow[]): HTMLElement {
 // Deductions Section
 // ---------------------------------------------------------------------------
 
-function buildDeductionsSection(deductions: DeductionRow[]): HTMLElement {
+function buildDeductionsSection(
+  deductions: DeductionRow[],
+  onAdd: (data: { name: string; code: string; type: DeductionType; method: CalcMethod; amount: number }) => void,
+  onDelete: (id: string) => void,
+): HTMLElement {
   const section = el('div', '');
   const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
 
@@ -252,7 +291,22 @@ function buildDeductionsSection(deductions: DeductionRow[]): HTMLElement {
 
   const addBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Add');
   addBtn.type = 'button';
-  addBtn.addEventListener('click', () => { /* add placeholder */ });
+  addBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    const code = codeInput.value.trim();
+    const amount = parseFloat(amountInput.value) || 0;
+    if (!name || !code || amount <= 0) return;
+    onAdd({
+      name,
+      code,
+      type: typeSelect.value as DeductionType,
+      method: methodSelect.value as CalcMethod,
+      amount,
+    });
+    nameInput.value = '';
+    codeInput.value = '';
+    amountInput.value = '';
+  });
   grid.appendChild(addBtn);
 
   card.appendChild(grid);
@@ -291,7 +345,7 @@ function buildDeductionsSection(deductions: DeductionRow[]): HTMLElement {
     tr.appendChild(el('td', 'py-2 px-3 text-right font-mono', ded.maxPerYear !== null ? fmtCurrency(ded.maxPerYear) : '-'));
     const tdActions = el('td', 'py-2 px-3');
     const deleteBtn = el('button', 'text-red-400 hover:underline text-sm', 'Delete');
-    deleteBtn.addEventListener('click', () => { /* delete placeholder */ });
+    deleteBtn.addEventListener('click', () => onDelete(ded.id));
     tdActions.appendChild(deleteBtn);
     tr.appendChild(tdActions);
     tbody.appendChild(tr);
@@ -308,7 +362,18 @@ function buildDeductionsSection(deductions: DeductionRow[]): HTMLElement {
 // Benefits Section
 // ---------------------------------------------------------------------------
 
-function buildBenefitsSection(benefits: BenefitRow[]): HTMLElement {
+function buildBenefitsSection(
+  benefits: BenefitRow[],
+  onAdd: (data: {
+    name: string;
+    code: string;
+    type: BenefitType;
+    method: CalcMethod;
+    employeeContribution: number;
+    employerContribution: number;
+  }) => void,
+  onDelete: (id: string) => void,
+): HTMLElement {
   const section = el('div', '');
   const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
 
@@ -355,7 +420,23 @@ function buildBenefitsSection(benefits: BenefitRow[]): HTMLElement {
 
   const addBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Add');
   addBtn.type = 'button';
-  addBtn.addEventListener('click', () => { /* add placeholder */ });
+  addBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    const code = codeInput.value.trim();
+    if (!name || !code) return;
+    onAdd({
+      name,
+      code,
+      type: typeSelect.value as BenefitType,
+      method: methodSelect.value as CalcMethod,
+      employeeContribution: parseFloat(empContribInput.value) || 0,
+      employerContribution: parseFloat(erContribInput.value) || 0,
+    });
+    nameInput.value = '';
+    codeInput.value = '';
+    empContribInput.value = '';
+    erContribInput.value = '';
+  });
   grid.appendChild(addBtn);
 
   card.appendChild(grid);
@@ -393,7 +474,7 @@ function buildBenefitsSection(benefits: BenefitRow[]): HTMLElement {
     tr.appendChild(el('td', 'py-2 px-3 text-right font-mono', fmtCurrency(ben.employerContribution)));
     const tdActions = el('td', 'py-2 px-3');
     const deleteBtn = el('button', 'text-red-400 hover:underline text-sm', 'Delete');
-    deleteBtn.addEventListener('click', () => { /* delete placeholder */ });
+    deleteBtn.addEventListener('click', () => onDelete(ben.id));
     tdActions.appendChild(deleteBtn);
     tr.appendChild(tdActions);
     tbody.appendChild(tr);
@@ -422,15 +503,154 @@ export default {
     let activeTab = 'earnings';
     const contentArea = el('div', '');
 
-    function renderTab(tab: string): void {
+    async function loadEarnings(): Promise<EarningRow[]> {
+      const svc = getPayrollService();
+      const data = await svc.getEarnings();
+      return data.map((e) => ({
+        id: e.id,
+        name: e.name,
+        code: e.code,
+        type: e.type,
+        multiplier: e.multiplier,
+        isTaxable: e.isTaxable,
+        isOvertime: e.isOvertime,
+      }));
+    }
+
+    async function loadDeductions(): Promise<DeductionRow[]> {
+      const svc = getPayrollService();
+      const data = await svc.getDeductions();
+      return data.map((d) => ({
+        id: d.id,
+        name: d.name,
+        code: d.code,
+        type: d.type,
+        method: d.method,
+        amount: d.amount,
+        maxPerPeriod: d.maxPerPeriod ?? null,
+        maxPerYear: d.maxPerYear ?? null,
+      }));
+    }
+
+    async function loadBenefits(): Promise<BenefitRow[]> {
+      const svc = getPayrollService();
+      const data = await svc.getBenefits();
+      return data.map((b) => ({
+        id: b.id,
+        name: b.name,
+        code: b.code,
+        type: b.type,
+        method: b.method,
+        employeeContribution: b.employeeContribution,
+        employerContribution: b.employerContribution,
+      }));
+    }
+
+    async function renderTab(tab: string): Promise<void> {
       activeTab = tab;
       contentArea.innerHTML = '';
-      if (tab === 'earnings') {
-        contentArea.appendChild(buildEarningsSection([]));
-      } else if (tab === 'deductions') {
-        contentArea.appendChild(buildDeductionsSection([]));
-      } else {
-        contentArea.appendChild(buildBenefitsSection([]));
+
+      try {
+        if (tab === 'earnings') {
+          const earnings = await loadEarnings();
+          contentArea.appendChild(buildEarningsSection(
+            earnings,
+            (data) => {
+              void (async () => {
+                try {
+                  const svc = getPayrollService();
+                  await svc.createEarning(data);
+                  showMsg(wrapper, 'Earning type created.', false);
+                  void renderTab('earnings');
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : 'Failed to create earning';
+                  showMsg(wrapper, message, true);
+                }
+              })();
+            },
+            (id) => {
+              if (!confirm('Delete this earning type?')) return;
+              void (async () => {
+                try {
+                  const svc = getPayrollService();
+                  await svc.deleteEarning(id);
+                  showMsg(wrapper, 'Earning type deleted.', false);
+                  void renderTab('earnings');
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : 'Failed to delete earning';
+                  showMsg(wrapper, message, true);
+                }
+              })();
+            },
+          ));
+        } else if (tab === 'deductions') {
+          const deductions = await loadDeductions();
+          contentArea.appendChild(buildDeductionsSection(
+            deductions,
+            (data) => {
+              void (async () => {
+                try {
+                  const svc = getPayrollService();
+                  await svc.createDeduction(data);
+                  showMsg(wrapper, 'Deduction created.', false);
+                  void renderTab('deductions');
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : 'Failed to create deduction';
+                  showMsg(wrapper, message, true);
+                }
+              })();
+            },
+            (id) => {
+              if (!confirm('Delete this deduction?')) return;
+              void (async () => {
+                try {
+                  const svc = getPayrollService();
+                  await svc.deleteDeduction(id);
+                  showMsg(wrapper, 'Deduction deleted.', false);
+                  void renderTab('deductions');
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : 'Failed to delete deduction';
+                  showMsg(wrapper, message, true);
+                }
+              })();
+            },
+          ));
+        } else {
+          const benefits = await loadBenefits();
+          contentArea.appendChild(buildBenefitsSection(
+            benefits,
+            (data) => {
+              void (async () => {
+                try {
+                  const svc = getPayrollService();
+                  await svc.createBenefit(data);
+                  showMsg(wrapper, 'Benefit created.', false);
+                  void renderTab('benefits');
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : 'Failed to create benefit';
+                  showMsg(wrapper, message, true);
+                }
+              })();
+            },
+            (id) => {
+              if (!confirm('Delete this benefit?')) return;
+              void (async () => {
+                try {
+                  const svc = getPayrollService();
+                  await svc.deleteBenefit(id);
+                  showMsg(wrapper, 'Benefit deleted.', false);
+                  void renderTab('benefits');
+                } catch (err: unknown) {
+                  const message = err instanceof Error ? err.message : 'Failed to delete benefit';
+                  showMsg(wrapper, message, true);
+                }
+              })();
+            },
+          ));
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load data';
+        showMsg(wrapper, message, true);
       }
     }
 
@@ -438,7 +658,7 @@ export default {
     function rebuildTabBar(): void {
       tabBarContainer.innerHTML = '';
       tabBarContainer.appendChild(buildTabBar(activeTab, (tab) => {
-        renderTab(tab);
+        void renderTab(tab);
         rebuildTabBar();
       }));
     }
@@ -446,7 +666,7 @@ export default {
     rebuildTabBar();
     wrapper.appendChild(tabBarContainer);
 
-    renderTab('earnings');
+    void renderTab('earnings');
     wrapper.appendChild(contentArea);
 
     container.appendChild(wrapper);

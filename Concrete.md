@@ -736,22 +736,22 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Payroll — construction payroll is uniquely complex
 
-- [ ] Employee master: personal info, hire date, status, department, class, union affiliation
-- [ ] Pay types: Regular, Overtime, Double Time, Premium, Per Diem, Piece Rate, Commission
-- [ ] Earnings/deductions/benefits configuration
-- [ ] Pay frequency: Weekly, Bi-weekly, Semi-monthly, Monthly
-- [ ] Time entry by employee, job, cost code, work classification
-- [ ] Gross-to-net calculation engine
-- [ ] Federal tax tables and withholding
-- [ ] State tax tables (all 50 states + DC)
-- [ ] Local/city tax support
-- [ ] FICA, FUTA, SUTA calculations
-- [ ] Workers' compensation class code assignment and premium tracking
-- [ ] Pay stub generation
-- [ ] Payroll register
-- [ ] Quarterly tax summary (941, 940, state equivalents)
-- [ ] Import time entries from CSV (merge by employee + date + job)
-- [ ] Export payroll data to CSV/JSON
+- [x] Employee master: personal info, hire date, status, department, class, union affiliation
+- [x] Pay types: Regular, Overtime, Double Time, Premium, Per Diem, Piece Rate, Commission
+- [x] Earnings/deductions/benefits configuration
+- [x] Pay frequency: Weekly, Bi-weekly, Semi-monthly, Monthly
+- [x] Time entry by employee, job, cost code, work classification
+- [x] Gross-to-net calculation engine
+- [x] Federal tax tables and withholding
+- [x] State tax tables (all 50 states + DC)
+- [x] Local/city tax support
+- [x] FICA, FUTA, SUTA calculations
+- [x] Workers' compensation class code assignment and premium tracking
+- [x] Pay stub generation
+- [x] Payroll register
+- [x] Quarterly tax summary (941, 940, state equivalents)
+- [x] Import time entries from CSV (merge by employee + date + job)
+- [x] Export payroll data to CSV/JSON
 
 ---
 

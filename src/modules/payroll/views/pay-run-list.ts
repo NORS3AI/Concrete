@@ -1,7 +1,11 @@
 /**
  * Pay Run List view.
  * Filterable table of pay runs with status badges and actions.
+ * Wired to PayrollService for live data.
  */
+
+import { getPayrollService } from '../service-accessor';
+import type { PayRunStatus } from '../payroll-service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -19,6 +23,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -160,11 +176,47 @@ export default {
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildFilterBar((_status) => { /* filter placeholder */ }));
+    const tableContainer = el('div', '');
+    let currentStatus = '';
 
-    const runs: PayRunRow[] = [];
-    wrapper.appendChild(buildTable(runs));
+    async function loadPayRuns(): Promise<void> {
+      try {
+        const svc = getPayrollService();
+        const filters: { status?: PayRunStatus } = {};
+        if (currentStatus) filters.status = currentStatus as PayRunStatus;
 
+        const payRuns = await svc.getPayRuns(filters);
+
+        const rows: PayRunRow[] = payRuns.map((run) => ({
+          id: run.id,
+          periodStart: run.periodStart,
+          periodEnd: run.periodEnd,
+          payDate: run.payDate,
+          status: run.status,
+          totalGross: run.totalGross,
+          totalNet: run.totalNet,
+          totalTaxes: run.totalTaxes,
+          totalDeductions: run.totalDeductions,
+          employeeCount: run.employeeCount,
+        }));
+
+        tableContainer.innerHTML = '';
+        tableContainer.appendChild(buildTable(rows));
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load pay runs';
+        showMsg(wrapper, message, true);
+      }
+    }
+
+    wrapper.appendChild(buildFilterBar((status) => {
+      currentStatus = status;
+      void loadPayRuns();
+    }));
+
+    wrapper.appendChild(tableContainer);
     container.appendChild(wrapper);
+
+    // Initial load
+    void loadPayRuns();
   },
 };
