@@ -759,19 +759,19 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Union Payroll + Prevailing Wage — critical for public works
 
-- [ ] Union master file (local number, trade, jurisdiction)
-- [ ] Union pay scale tables (base rate, fringe, vacation, training, pension, annuity)
-- [ ] Multi-union support per employee
-- [ ] Prevailing wage rate tables by jurisdiction and classification
-- [ ] Davis-Bacon compliance tracking
-- [ ] Certified payroll report generation (WH-347)
-- [ ] Fringe benefit allocation (cash vs. plan)
-- [ ] Union remittance report generation
-- [ ] Apprentice ratio tracking and compliance
-- [ ] Multi-state, multi-classification support per pay period
-- [ ] Split job costing (different rates per job within same check)
-- [ ] Import union rate tables from CSV
-- [ ] Import prevailing wage schedules from CSV
+- [x] Union master file (local number, trade, jurisdiction)
+- [x] Union pay scale tables (base rate, fringe, vacation, training, pension, annuity)
+- [x] Multi-union support per employee
+- [x] Prevailing wage rate tables by jurisdiction and classification
+- [x] Davis-Bacon compliance tracking
+- [x] Certified payroll report generation (WH-347)
+- [x] Fringe benefit allocation (cash vs. plan)
+- [x] Union remittance report generation
+- [x] Apprentice ratio tracking and compliance
+- [x] Multi-state, multi-classification support per pay period
+- [x] Split job costing (different rates per job within same check)
+- [x] Import union rate tables from CSV
+- [x] Import prevailing wage schedules from CSV
 
 ---
 

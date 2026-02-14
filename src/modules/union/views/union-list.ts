@@ -1,7 +1,11 @@
 /**
  * Union List view.
- * Filterable table of unions with status and trade dropdowns.
+ * Filterable table of unions with status dropdown and search.
+ * Wired to UnionService for live data.
  */
+
+import { getUnionService } from '../service-accessor';
+import type { UnionStatus } from '../union-service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,6 +20,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -83,7 +99,10 @@ function buildFilterBar(
 // Table
 // ---------------------------------------------------------------------------
 
-function buildTable(unions: UnionRow[]): HTMLElement {
+function buildTable(
+  unions: UnionRow[],
+  onDelete: (id: string) => void,
+): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -127,10 +146,13 @@ function buildTable(unions: UnionRow[]): HTMLElement {
     tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', union.contactPhone));
     tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', union.contactEmail));
 
-    const tdActions = el('td', 'py-2 px-3');
+    const tdActions = el('td', 'py-2 px-3 flex gap-2');
     const editLink = el('a', 'text-[var(--accent)] hover:underline text-sm', 'Edit') as HTMLAnchorElement;
     editLink.href = `#/union/unions/${union.id}`;
     tdActions.appendChild(editLink);
+    const deleteBtn = el('button', 'text-red-400 hover:underline text-sm', 'Delete');
+    deleteBtn.addEventListener('click', () => onDelete(union.id));
+    tdActions.appendChild(deleteBtn);
     tr.appendChild(tdActions);
 
     tbody.appendChild(tr);
@@ -158,11 +180,77 @@ export default {
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildFilterBar((_status, _search) => { /* filter placeholder */ }));
+    const tableContainer = el('div', '');
 
-    const unions: UnionRow[] = [];
-    wrapper.appendChild(buildTable(unions));
+    // Current filter state
+    let currentStatus = '';
+    let currentSearch = '';
 
+    async function loadUnions(): Promise<void> {
+      try {
+        const svc = getUnionService();
+        const filters: { status?: UnionStatus } = {};
+        if (currentStatus) filters.status = currentStatus as UnionStatus;
+
+        let unions = await svc.getUnions(filters);
+
+        // Client-side search filtering
+        if (currentSearch) {
+          const term = currentSearch.toLowerCase();
+          unions = unions.filter((u) => {
+            const name = (u.name ?? '').toLowerCase();
+            const localNum = (u.localNumber ?? '').toLowerCase();
+            const trade = (u.trade ?? '').toLowerCase();
+            return name.includes(term) || localNum.includes(term) || trade.includes(term);
+          });
+        }
+
+        const rows: UnionRow[] = unions.map((u) => ({
+          id: u.id,
+          name: u.name,
+          localNumber: u.localNumber,
+          trade: u.trade,
+          jurisdiction: u.jurisdiction ?? '',
+          status: u.status,
+          contactName: u.contactName ?? '',
+          contactPhone: u.contactPhone ?? '',
+          contactEmail: u.contactEmail ?? '',
+        }));
+
+        tableContainer.innerHTML = '';
+        tableContainer.appendChild(buildTable(
+          rows,
+          (id) => {
+            if (!confirm('Are you sure you want to delete this union?')) return;
+            void (async () => {
+              try {
+                const svcInner = getUnionService();
+                await svcInner.deleteUnion(id);
+                showMsg(wrapper, 'Union deleted.', false);
+                void loadUnions();
+              } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : 'Failed to delete union';
+                showMsg(wrapper, message, true);
+              }
+            })();
+          },
+        ));
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load unions';
+        showMsg(wrapper, message, true);
+      }
+    }
+
+    wrapper.appendChild(buildFilterBar((status, search) => {
+      currentStatus = status;
+      currentSearch = search;
+      void loadUnions();
+    }));
+
+    wrapper.appendChild(tableContainer);
     container.appendChild(wrapper);
+
+    // Initial load
+    void loadUnions();
   },
 };
