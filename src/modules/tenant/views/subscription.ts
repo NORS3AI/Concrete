@@ -1,7 +1,10 @@
 /**
  * Subscription view.
  * Plan selection, billing details, payment method, usage vs limits.
+ * Wired to TenantService for live data.
  */
+
+import { getTenantService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,13 +24,36 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+/** Extract tenantId from hash: #/tenant/{id}/subscription */
+function parseTenantId(): string {
+  const hash = window.location.hash; // e.g. #/tenant/abc123/subscription
+  const parts = hash.replace(/^#\/?/, '').split('/');
+  // Expected: ['tenant', '{id}', 'subscription']
+  if (parts.length >= 3 && parts[0] === 'tenant') {
+    return parts[1];
+  }
+  return '';
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const PLANS = [
   {
-    id: 'free',
+    id: 'free' as const,
     name: 'Free',
     price: 0,
     maxUsers: 3,
@@ -36,7 +62,7 @@ const PLANS = [
     features: ['Basic reporting', 'Single entity', 'Email support'],
   },
   {
-    id: 'starter',
+    id: 'starter' as const,
     name: 'Starter',
     price: 49,
     maxUsers: 10,
@@ -45,7 +71,7 @@ const PLANS = [
     features: ['Advanced reporting', 'Multi-entity', 'Priority support', 'CSV import/export'],
   },
   {
-    id: 'professional',
+    id: 'professional' as const,
     name: 'Professional',
     price: 149,
     maxUsers: 50,
@@ -54,7 +80,7 @@ const PLANS = [
     features: ['Custom dashboards', 'API access', 'Workflow automation', 'Audit trail', 'Phone support'],
   },
   {
-    id: 'enterprise',
+    id: 'enterprise' as const,
     name: 'Enterprise',
     price: 499,
     maxUsers: 500,
@@ -75,7 +101,11 @@ const STATUS_BADGE: Record<string, string> = {
 // Plan Cards
 // ---------------------------------------------------------------------------
 
-function buildPlanCards(currentPlan: string): HTMLElement {
+function buildPlanCards(
+  currentPlan: string,
+  tenantId: string,
+  wrapper: HTMLElement,
+): HTMLElement {
   const grid = el('div', 'grid grid-cols-4 gap-4 mb-6');
 
   for (const plan of PLANS) {
@@ -113,7 +143,20 @@ function buildPlanCards(currentPlan: string): HTMLElement {
     if (!isCurrent) {
       const selectBtn = el('button', 'w-full mt-4 px-4 py-2 rounded-md text-sm font-medium border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-colors', 'Select Plan');
       selectBtn.type = 'button';
-      selectBtn.addEventListener('click', () => { /* select plan placeholder */ });
+      selectBtn.addEventListener('click', async () => {
+        try {
+          const svc = getTenantService();
+          await svc.updatePlan(tenantId, plan.id, plan.price);
+          showMsg(wrapper, `Plan updated to ${plan.name} successfully.`, false);
+          // Re-render after short delay so user sees the message
+          setTimeout(() => {
+            subscriptionView.render(wrapper.parentElement ?? wrapper);
+          }, 600);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          showMsg(wrapper, `Failed to update plan: ${message}`, true);
+        }
+      });
       card.appendChild(selectBtn);
     }
 
@@ -127,7 +170,10 @@ function buildPlanCards(currentPlan: string): HTMLElement {
 // Billing Details
 // ---------------------------------------------------------------------------
 
-function buildBillingDetails(): HTMLElement {
+function buildBillingDetails(
+  subscription: { status: string; currentPeriodStart: string; currentPeriodEnd: string; amount: number; paymentMethod?: string } | null,
+  wrapper: HTMLElement,
+): HTMLElement {
   const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6 mb-4');
   card.appendChild(el('h2', 'text-lg font-semibold text-[var(--text)] mb-4', 'Billing Details'));
 
@@ -138,18 +184,24 @@ function buildBillingDetails(): HTMLElement {
 
   const statusRow = el('div', 'flex items-center justify-between');
   statusRow.appendChild(el('span', 'text-sm text-[var(--text-muted)]', 'Status'));
-  const statusBadge = el('span', `px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE.trialing}`, 'Trialing');
+  const status = subscription?.status ?? 'trialing';
+  const badgeCls = STATUS_BADGE[status] ?? STATUS_BADGE.trialing;
+  const statusLabel = status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
+  const statusBadge = el('span', `px-2 py-0.5 rounded-full text-xs font-medium ${badgeCls}`, statusLabel);
   statusRow.appendChild(statusBadge);
   infoSection.appendChild(statusRow);
 
   const periodRow = el('div', 'flex items-center justify-between');
   periodRow.appendChild(el('span', 'text-sm text-[var(--text-muted)]', 'Current Period'));
-  periodRow.appendChild(el('span', 'text-sm text-[var(--text)]', '-'));
+  const periodText = subscription
+    ? `${subscription.currentPeriodStart} - ${subscription.currentPeriodEnd}`
+    : '-';
+  periodRow.appendChild(el('span', 'text-sm text-[var(--text)]', periodText));
   infoSection.appendChild(periodRow);
 
   const amountRow = el('div', 'flex items-center justify-between');
   amountRow.appendChild(el('span', 'text-sm text-[var(--text-muted)]', 'Amount'));
-  amountRow.appendChild(el('span', 'text-sm font-mono text-[var(--text)]', fmtCurrency(0)));
+  amountRow.appendChild(el('span', 'text-sm font-mono text-[var(--text)]', fmtCurrency(subscription?.amount ?? 0)));
   infoSection.appendChild(amountRow);
 
   grid.appendChild(infoSection);
@@ -158,10 +210,18 @@ function buildBillingDetails(): HTMLElement {
   const paymentSection = el('div', '');
   paymentSection.appendChild(el('h3', 'text-sm font-medium text-[var(--text-muted)] mb-2', 'Payment Method'));
   const noPayment = el('div', 'bg-[var(--surface)] border border-[var(--border)] rounded-md p-4 text-center');
-  noPayment.appendChild(el('div', 'text-sm text-[var(--text-muted)] mb-2', 'No payment method on file'));
+
+  if (subscription?.paymentMethod) {
+    noPayment.appendChild(el('div', 'text-sm text-[var(--text)] mb-2', subscription.paymentMethod));
+  } else {
+    noPayment.appendChild(el('div', 'text-sm text-[var(--text-muted)] mb-2', 'No payment method on file'));
+  }
+
   const addPaymentBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Add Payment Method');
   addPaymentBtn.type = 'button';
-  addPaymentBtn.addEventListener('click', () => { /* add payment placeholder */ });
+  addPaymentBtn.addEventListener('click', () => {
+    showMsg(wrapper, 'Payment methods require cloud deployment integration.', false);
+  });
   noPayment.appendChild(addPaymentBtn);
   paymentSection.appendChild(noPayment);
   grid.appendChild(paymentSection);
@@ -174,15 +234,23 @@ function buildBillingDetails(): HTMLElement {
 // Usage vs Limits
 // ---------------------------------------------------------------------------
 
-function buildUsageLimits(): HTMLElement {
+function buildUsageLimits(
+  stats: { userCount: number; maxUsers: number; entityCount: number; maxEntities: number; storageUsedMb: number; storageLimitMb: number } | null,
+): HTMLElement {
   const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6 mb-4');
   card.appendChild(el('h2', 'text-lg font-semibold text-[var(--text)] mb-4', 'Usage vs Limits'));
 
-  const metrics = [
-    { label: 'Users', used: 0, limit: 3, unit: '' },
-    { label: 'Entities', used: 0, limit: 5, unit: '' },
-    { label: 'Storage', used: 0, limit: 100, unit: 'MB' },
-  ];
+  const metrics = stats
+    ? [
+        { label: 'Users', used: stats.userCount, limit: stats.maxUsers, unit: '' },
+        { label: 'Entities', used: stats.entityCount, limit: stats.maxEntities, unit: '' },
+        { label: 'Storage', used: stats.storageUsedMb, limit: stats.storageLimitMb, unit: 'MB' },
+      ]
+    : [
+        { label: 'Users', used: 0, limit: 3, unit: '' },
+        { label: 'Entities', used: 0, limit: 5, unit: '' },
+        { label: 'Storage', used: 0, limit: 100, unit: 'MB' },
+      ];
 
   const grid = el('div', 'space-y-4');
 
@@ -216,13 +284,53 @@ function buildUsageLimits(): HTMLElement {
 // Action Buttons
 // ---------------------------------------------------------------------------
 
-function buildActions(): HTMLElement {
+function buildActions(
+  tenantId: string,
+  subscriptionStatus: string | null,
+  wrapper: HTMLElement,
+): HTMLElement {
   const row = el('div', 'flex items-center gap-3');
 
-  const cancelBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium text-red-400 border border-red-500/20 hover:bg-red-500/10', 'Cancel Subscription');
-  cancelBtn.type = 'button';
-  cancelBtn.addEventListener('click', () => { /* cancel placeholder */ });
-  row.appendChild(cancelBtn);
+  if (subscriptionStatus === 'cancelled') {
+    const resumeBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/10', 'Resume Subscription');
+    resumeBtn.type = 'button';
+    resumeBtn.addEventListener('click', async () => {
+      try {
+        const svc = getTenantService();
+        const result = await svc.resumeSubscription(tenantId);
+        showMsg(wrapper, `Subscription resumed successfully. Status: ${result.status}`, false);
+        setTimeout(() => {
+          subscriptionView.render(wrapper.parentElement ?? wrapper);
+        }, 600);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        showMsg(wrapper, `Failed to resume subscription: ${message}`, true);
+      }
+    });
+    row.appendChild(resumeBtn);
+  } else {
+    const cancelBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium text-red-400 border border-red-500/20 hover:bg-red-500/10', 'Cancel Subscription');
+    cancelBtn.type = 'button';
+    cancelBtn.addEventListener('click', async () => {
+      const confirmed = window.confirm(
+        'Are you sure you want to cancel your subscription? This will downgrade your access.',
+      );
+      if (!confirmed) return;
+
+      try {
+        const svc = getTenantService();
+        const result = await svc.cancelSubscription(tenantId);
+        showMsg(wrapper, `Subscription cancelled. Status: ${result.status}`, false);
+        setTimeout(() => {
+          subscriptionView.render(wrapper.parentElement ?? wrapper);
+        }, 600);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        showMsg(wrapper, `Failed to cancel subscription: ${message}`, true);
+      }
+    });
+    row.appendChild(cancelBtn);
+  }
 
   return row;
 }
@@ -231,7 +339,7 @@ function buildActions(): HTMLElement {
 // Render
 // ---------------------------------------------------------------------------
 
-export default {
+const subscriptionView = {
   render(container: HTMLElement): void {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
@@ -243,11 +351,76 @@ export default {
     headerRow.appendChild(backLink);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildPlanCards('free'));
-    wrapper.appendChild(buildBillingDetails());
-    wrapper.appendChild(buildUsageLimits());
-    wrapper.appendChild(buildActions());
-
+    // Show loading state
+    const loadingEl = el('div', 'text-sm text-[var(--text-muted)] py-8 text-center', 'Loading subscription data...');
+    wrapper.appendChild(loadingEl);
     container.appendChild(wrapper);
+
+    const tenantId = parseTenantId();
+    if (!tenantId) {
+      loadingEl.remove();
+      showMsg(wrapper, 'Could not determine tenant ID from the URL.', true);
+      return;
+    }
+
+    const svc = getTenantService();
+
+    // Load data from service
+    Promise.all([
+      svc.getSubscription(tenantId),
+      svc.getTenant(tenantId),
+      svc.getUsageStats(tenantId),
+    ])
+      .then(([subscription, tenant, usageStats]) => {
+        loadingEl.remove();
+
+        const currentPlan = subscription?.plan ?? tenant?.plan ?? 'free';
+
+        wrapper.appendChild(buildPlanCards(currentPlan, tenantId, wrapper));
+        wrapper.appendChild(
+          buildBillingDetails(
+            subscription
+              ? {
+                  status: subscription.status,
+                  currentPeriodStart: subscription.currentPeriodStart,
+                  currentPeriodEnd: subscription.currentPeriodEnd,
+                  amount: subscription.amount,
+                  paymentMethod: subscription.paymentMethod,
+                }
+              : null,
+            wrapper,
+          ),
+        );
+        wrapper.appendChild(
+          buildUsageLimits(
+            usageStats
+              ? {
+                  userCount: usageStats.userCount,
+                  maxUsers: usageStats.maxUsers,
+                  entityCount: usageStats.entityCount,
+                  maxEntities: usageStats.maxEntities,
+                  storageUsedMb: usageStats.storageUsedMb,
+                  storageLimitMb: usageStats.storageLimitMb,
+                }
+              : null,
+          ),
+        );
+        wrapper.appendChild(
+          buildActions(tenantId, subscription?.status ?? null, wrapper),
+        );
+      })
+      .catch((err: unknown) => {
+        loadingEl.remove();
+        const message = err instanceof Error ? err.message : String(err);
+        showMsg(wrapper, `Failed to load subscription data: ${message}`, true);
+
+        // Fallback: render with defaults
+        wrapper.appendChild(buildPlanCards('free', tenantId, wrapper));
+        wrapper.appendChild(buildBillingDetails(null, wrapper));
+        wrapper.appendChild(buildUsageLimits(null));
+        wrapper.appendChild(buildActions(tenantId, null, wrapper));
+      });
   },
 };
+
+export default subscriptionView;

@@ -972,16 +972,16 @@ plugin/customField    plugin/script
 
 > Support multiple construction companies on shared infrastructure
 
-- [ ] Tenant isolation at database level (D1 per tenant or row-level)
-- [ ] Tenant provisioning: self-service signup → isolated environment
-- [ ] Custom subdomain per tenant (company.concrete.app)
-- [ ] Tenant-level configuration (COA templates, tax tables, pay scales)
-- [ ] Tenant admin panel (user management, subscription, usage)
-- [ ] Data residency options (US, EU, APAC edge locations)
-- [ ] Tenant data export (full portability)
-- [ ] Tenant data deletion (GDPR/CCPA compliance)
-- [ ] Cross-tenant analytics (anonymized, opt-in, Phase 30+)
-- [ ] White-label support (custom branding per tenant)
+- [x] Tenant isolation at database level (D1 per tenant or row-level)
+- [x] Tenant provisioning: self-service signup → isolated environment
+- [x] Custom subdomain per tenant (company.concrete.app)
+- [x] Tenant-level configuration (COA templates, tax tables, pay scales)
+- [x] Tenant admin panel (user management, subscription, usage)
+- [x] Data residency options (US, EU, APAC edge locations)
+- [x] Tenant data export (full portability)
+- [x] Tenant data deletion (GDPR/CCPA compliance)
+- [x] Cross-tenant analytics (anonymized, opt-in, Phase 30+)
+- [x] White-label support (custom branding per tenant)
 
 ---
 
