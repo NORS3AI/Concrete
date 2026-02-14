@@ -1,7 +1,10 @@
 /**
  * Service Call Log view.
  * Table of service calls with date, caller, type, priority, status, and linked WO.
+ * Integrates with ServiceMgmtService for data and mutations.
  */
+
+import { getServiceMgmtService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,6 +19,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(msg: string, type: 'success' | 'error' | 'info' = 'info'): void {
+  const toast = el('div', `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-opacity duration-300 ${
+    type === 'success' ? 'bg-emerald-600 text-white' :
+    type === 'error' ? 'bg-red-600 text-white' :
+    'bg-blue-600 text-white'
+  }`);
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+  setTimeout(() => { toast.remove(); }, 3000);
 }
 
 // ---------------------------------------------------------------------------
@@ -110,7 +125,11 @@ function buildFilterBar(
 // Table
 // ---------------------------------------------------------------------------
 
-function buildTable(calls: CallRow[]): HTMLElement {
+function buildTable(
+  calls: CallRow[],
+  onDispatch: (callId: string) => void,
+  onResolve: (callId: string) => void,
+): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -157,12 +176,18 @@ function buildTable(calls: CallRow[]): HTMLElement {
     tr.appendChild(el('td', 'py-2 px-3 font-mono text-[var(--accent)]', call.workOrderNumber));
 
     const tdActions = el('td', 'py-2 px-3');
-    const dispatchBtn = el('button', 'text-[var(--accent)] hover:underline text-sm mr-2', 'Dispatch');
-    dispatchBtn.type = 'button';
-    tdActions.appendChild(dispatchBtn);
-    const resolveBtn = el('button', 'text-emerald-400 hover:underline text-sm', 'Resolve');
-    resolveBtn.type = 'button';
-    tdActions.appendChild(resolveBtn);
+    if (call.status !== 'resolved') {
+      if (call.status === 'new') {
+        const dispatchBtn = el('button', 'text-[var(--accent)] hover:underline text-sm mr-2', 'Dispatch');
+        dispatchBtn.type = 'button';
+        dispatchBtn.addEventListener('click', () => onDispatch(call.id));
+        tdActions.appendChild(dispatchBtn);
+      }
+      const resolveBtn = el('button', 'text-emerald-400 hover:underline text-sm', 'Resolve');
+      resolveBtn.type = 'button';
+      resolveBtn.addEventListener('click', () => onResolve(call.id));
+      tdActions.appendChild(resolveBtn);
+    }
     tr.appendChild(tdActions);
 
     tbody.appendChild(tr);
@@ -182,19 +207,158 @@ export default {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
-    const headerRow = el('div', 'flex items-center justify-between mb-4');
-    headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Service Calls'));
-    const newBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Log New Call');
-    newBtn.type = 'button';
-    newBtn.addEventListener('click', () => { /* new call placeholder */ });
-    headerRow.appendChild(newBtn);
-    wrapper.appendChild(headerRow);
-
-    wrapper.appendChild(buildFilterBar((_status, _type, _search) => { /* filter placeholder */ }));
-
-    const calls: CallRow[] = [];
-    wrapper.appendChild(buildTable(calls));
-
+    // Loading indicator
+    const loading = el('div', 'py-12 text-center text-[var(--text-muted)]', 'Loading service calls...');
+    wrapper.appendChild(loading);
     container.appendChild(wrapper);
+
+    // Async data loading and UI build
+    (async () => {
+      const svc = getServiceMgmtService();
+      let allCalls: CallRow[] = [];
+
+      try {
+        const raw = await svc.listCalls();
+        allCalls = raw.map((c) => ({
+          id: (c as any).id,
+          callDate: c.callDate ?? '',
+          callerName: c.callerName ?? '',
+          callerPhone: c.callerPhone ?? '',
+          callType: c.callType ?? '',
+          priority: c.priority ?? 'medium',
+          description: c.description ?? '',
+          status: c.status ?? 'new',
+          assignedTo: c.assignedTo ?? '',
+          workOrderNumber: c.workOrderId ?? '',
+        }));
+      } catch (err) {
+        wrapper.innerHTML = '';
+        wrapper.appendChild(el('div', 'py-12 text-center text-red-400', `Failed to load service calls: ${err}`));
+        return;
+      }
+
+      let filteredCalls = [...allCalls];
+
+      // --- Re-render table in place ---
+      const renderTable = () => {
+        const existing = wrapper.querySelector('[data-role="calls-table"]');
+        if (existing) existing.remove();
+
+        const tableWrap = buildTable(filteredCalls, handleDispatch, handleResolve);
+        tableWrap.setAttribute('data-role', 'calls-table');
+        wrapper.appendChild(tableWrap);
+      };
+
+      // --- Reload all data from service ---
+      const reloadData = async () => {
+        try {
+          const raw = await svc.listCalls();
+          allCalls = raw.map((c) => ({
+            id: (c as any).id,
+            callDate: c.callDate ?? '',
+            callerName: c.callerName ?? '',
+            callerPhone: c.callerPhone ?? '',
+            callType: c.callType ?? '',
+            priority: c.priority ?? 'medium',
+            description: c.description ?? '',
+            status: c.status ?? 'new',
+            assignedTo: c.assignedTo ?? '',
+            workOrderNumber: c.workOrderId ?? '',
+          }));
+          applyFilters();
+        } catch (err) {
+          showMsg(`Failed to reload calls: ${err}`, 'error');
+        }
+      };
+
+      // --- Filters ---
+      let currentStatus = '';
+      let currentType = '';
+      let currentSearch = '';
+
+      const applyFilters = () => {
+        filteredCalls = allCalls.filter((call) => {
+          if (currentStatus && call.status !== currentStatus) return false;
+          if (currentType && call.callType !== currentType) return false;
+          if (currentSearch) {
+            const q = currentSearch.toLowerCase();
+            const searchable = `${call.callerName} ${call.callerPhone} ${call.description} ${call.callType} ${call.assignedTo}`.toLowerCase();
+            if (!searchable.includes(q)) return false;
+          }
+          return true;
+        });
+        renderTable();
+      };
+
+      // --- Actions ---
+      const handleDispatch = async (callId: string) => {
+        const technicianId = prompt('Enter technician ID to dispatch to:');
+        if (!technicianId) return;
+        try {
+          await svc.dispatchCall(callId, technicianId);
+          showMsg('Call dispatched successfully.', 'success');
+          await reloadData();
+        } catch (err) {
+          showMsg(`Failed to dispatch call: ${err}`, 'error');
+        }
+      };
+
+      const handleResolve = async (callId: string) => {
+        try {
+          await svc.resolveCall(callId);
+          showMsg('Call resolved successfully.', 'success');
+          await reloadData();
+        } catch (err) {
+          showMsg(`Failed to resolve call: ${err}`, 'error');
+        }
+      };
+
+      const handleNewCall = async () => {
+        const customerId = prompt('Customer ID:');
+        if (!customerId) return;
+        const callType = prompt('Call type (request, complaint, inquiry, emergency):') as any;
+        if (!callType) return;
+        const priority = prompt('Priority (low, medium, high, emergency):') || 'medium';
+        const description = prompt('Description (optional):') || undefined;
+        const callerName = prompt('Caller name (optional):') || undefined;
+        const callerPhone = prompt('Caller phone (optional):') || undefined;
+
+        try {
+          await svc.createCall({
+            customerId,
+            callType,
+            priority: priority as any,
+            description,
+            callerName,
+            callerPhone,
+            callDate: new Date().toISOString().split('T')[0],
+          });
+          showMsg('Service call logged successfully.', 'success');
+          await reloadData();
+        } catch (err) {
+          showMsg(`Failed to create call: ${err}`, 'error');
+        }
+      };
+
+      // --- Build UI ---
+      wrapper.innerHTML = '';
+
+      const headerRow = el('div', 'flex items-center justify-between mb-4');
+      headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Service Calls'));
+      const newBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Log New Call');
+      newBtn.type = 'button';
+      newBtn.addEventListener('click', handleNewCall);
+      headerRow.appendChild(newBtn);
+      wrapper.appendChild(headerRow);
+
+      wrapper.appendChild(buildFilterBar((status, callType, search) => {
+        currentStatus = status;
+        currentType = callType;
+        currentSearch = search;
+        applyFilters();
+      }));
+
+      renderTable();
+    })();
   },
 };

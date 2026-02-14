@@ -1,7 +1,10 @@
 /**
  * Service Agreement List view.
  * Filterable table of service agreements with type, status, and customer filters.
+ * Integrates with ServiceMgmtService for live data.
  */
+
+import { getServiceMgmtService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -19,6 +22,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(msg: string, type: 'success' | 'error' | 'info' = 'info'): void {
+  const colors: Record<string, string> = {
+    success: 'bg-emerald-600',
+    error: 'bg-red-600',
+    info: 'bg-blue-600',
+  };
+  const toast = el('div', `fixed top-4 right-4 z-50 px-4 py-3 rounded-md text-white text-sm shadow-lg ${colors[type]}`);
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 // ---------------------------------------------------------------------------
@@ -55,13 +70,45 @@ const STATUS_BADGE: Record<string, string> = {
 interface AgreementRow {
   id: string;
   name: string;
-  customerName: string;
+  customerId: string;
   type: string;
   status: string;
   startDate: string;
   endDate: string;
   recurringAmount: number;
-  coverage: string;
+  coveredEquipment: string;
+}
+
+// ---------------------------------------------------------------------------
+// Summary Cards
+// ---------------------------------------------------------------------------
+
+function buildSummaryCards(agreements: AgreementRow[]): HTMLElement {
+  const row = el('div', 'grid grid-cols-3 gap-4 mb-4');
+
+  const activeCount = agreements.filter(a => a.status === 'active').length;
+  const totalRecurring = agreements
+    .filter(a => a.status === 'active')
+    .reduce((sum, a) => sum + a.recurringAmount, 0);
+
+  const today = new Date().toISOString().split('T')[0];
+  const in30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const expiringSoon = agreements.filter(
+    a => a.status === 'active' && a.endDate && a.endDate >= today && a.endDate <= in30,
+  ).length;
+
+  const buildCard = (label: string, value: string, accent?: boolean): HTMLElement => {
+    const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4');
+    card.appendChild(el('div', 'text-sm text-[var(--text-muted)] mb-1', label));
+    card.appendChild(el('div', `text-xl font-bold ${accent ? 'text-[var(--accent)]' : 'text-[var(--text)]'}`, value));
+    return card;
+  };
+
+  row.appendChild(buildCard('Active Agreements', String(activeCount), true));
+  row.appendChild(buildCard('Total Monthly Recurring', fmtCurrency(totalRecurring)));
+  row.appendChild(buildCard('Expiring in 30 Days', String(expiringSoon), expiringSoon > 0));
+
+  return row;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,7 +185,7 @@ function buildTable(agreements: AgreementRow[]): HTMLElement {
     tdName.appendChild(link);
     tr.appendChild(tdName);
 
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text)]', row.customerName));
+    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text)]', row.customerId));
     tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', row.type));
 
     const tdStatus = el('td', 'py-2 px-3');
@@ -148,9 +195,9 @@ function buildTable(agreements: AgreementRow[]): HTMLElement {
     tr.appendChild(tdStatus);
 
     tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', row.startDate));
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', row.endDate));
+    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', row.endDate || '--'));
     tr.appendChild(el('td', 'py-2 px-3 text-right font-mono', fmtCurrency(row.recurringAmount)));
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', row.coverage));
+    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', row.coveredEquipment || '--'));
 
     const tdActions = el('td', 'py-2 px-3');
     const editLink = el('a', 'text-[var(--accent)] hover:underline text-sm', 'Edit') as HTMLAnchorElement;
@@ -175,6 +222,7 @@ export default {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
+    // Header
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Service Agreements'));
     const newBtn = el('a', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90') as HTMLAnchorElement;
@@ -183,11 +231,61 @@ export default {
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildFilterBar((_status, _type, _search) => { /* filter placeholder */ }));
-
-    const agreements: AgreementRow[] = [];
-    wrapper.appendChild(buildTable(agreements));
-
+    // Loading indicator
+    const loadingEl = el('div', 'text-center py-8 text-[var(--text-muted)]', 'Loading agreements...');
+    wrapper.appendChild(loadingEl);
     container.appendChild(wrapper);
+
+    // Load data from service
+    const svc = getServiceMgmtService();
+    svc.listAgreements().then((rawAgreements) => {
+      const allAgreements: AgreementRow[] = rawAgreements.map(a => ({
+        id: a.id,
+        name: a.name,
+        customerId: a.customerId,
+        type: a.type,
+        status: a.status,
+        startDate: a.startDate,
+        endDate: a.endDate ?? '',
+        recurringAmount: a.recurringAmount,
+        coveredEquipment: a.coveredEquipment ?? '',
+      }));
+
+      // Remove loading indicator
+      loadingEl.remove();
+
+      // Summary cards
+      const summaryEl = buildSummaryCards(allAgreements);
+      wrapper.appendChild(summaryEl);
+
+      // Container for the table (will be replaced on filter)
+      const tableContainer = el('div');
+
+      // Filter bar with client-side filtering
+      const filterBar = buildFilterBar((status, type, search) => {
+        const searchLower = search.toLowerCase();
+        const filtered = allAgreements.filter(a => {
+          if (status && a.status !== status) return false;
+          if (type && a.type !== type) return false;
+          if (search) {
+            const haystack = `${a.name} ${a.customerId} ${a.type} ${a.coveredEquipment}`.toLowerCase();
+            if (!haystack.includes(searchLower)) return false;
+          }
+          return true;
+        });
+        tableContainer.innerHTML = '';
+        tableContainer.appendChild(buildTable(filtered));
+      });
+      wrapper.appendChild(filterBar);
+
+      // Initial table render
+      tableContainer.appendChild(buildTable(allAgreements));
+      wrapper.appendChild(tableContainer);
+    }).catch((err: unknown) => {
+      loadingEl.remove();
+      const errMsg = err instanceof Error ? err.message : String(err);
+      showMsg(`Failed to load agreements: ${errMsg}`, 'error');
+      wrapper.appendChild(el('div', 'text-center py-8 text-red-400', `Error loading agreements: ${errMsg}`));
+    });
   },
 };

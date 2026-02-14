@@ -1,8 +1,11 @@
 /**
  * Dispatch Board view.
  * Shows unassigned work orders and technician availability
- * with a drag-to-assign layout concept.
+ * with assign actions and summary stats.
+ * Integrates with ServiceMgmtService for live data.
  */
+
+import { getServiceMgmtService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -17,6 +20,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(msg: string, type: 'success' | 'error' | 'info' = 'info'): void {
+  const colors: Record<string, string> = {
+    success: 'bg-emerald-600',
+    error: 'bg-red-600',
+    info: 'bg-blue-600',
+  };
+  const toast = el('div', `fixed top-4 right-4 z-50 px-4 py-3 rounded-md text-white text-sm shadow-lg ${colors[type]}`);
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 // ---------------------------------------------------------------------------
@@ -37,25 +52,21 @@ const PRIORITY_BADGE: Record<string, string> = {
 interface UnassignedWO {
   id: string;
   number: string;
-  customerName: string;
+  customerId: string;
   priority: string;
   type: string;
   scheduledDate: string;
   description: string;
 }
 
-interface Technician {
-  id: string;
-  name: string;
-  assignedCount: number;
-  status: string;
-}
-
 // ---------------------------------------------------------------------------
 // Unassigned Queue
 // ---------------------------------------------------------------------------
 
-function buildUnassignedQueue(workOrders: UnassignedWO[]): HTMLElement {
+function buildUnassignedQueue(
+  workOrders: UnassignedWO[],
+  onAssign: (woId: string) => void,
+): HTMLElement {
   const section = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4');
   section.appendChild(el('h2', 'text-lg font-semibold text-[var(--text)] mb-3', 'Unassigned Work Orders'));
 
@@ -66,8 +77,7 @@ function buildUnassignedQueue(workOrders: UnassignedWO[]): HTMLElement {
 
   const list = el('div', 'space-y-2');
   for (const wo of workOrders) {
-    const card = el('div', 'bg-[var(--surface)] border border-[var(--border)] rounded-md p-3 cursor-grab hover:border-[var(--accent)] transition-colors');
-    card.setAttribute('draggable', 'true');
+    const card = el('div', 'bg-[var(--surface)] border border-[var(--border)] rounded-md p-3 hover:border-[var(--accent)] transition-colors');
     card.dataset.woId = wo.id;
 
     const topRow = el('div', 'flex items-center justify-between mb-1');
@@ -77,11 +87,17 @@ function buildUnassignedQueue(workOrders: UnassignedWO[]): HTMLElement {
     topRow.appendChild(prioBadge);
     card.appendChild(topRow);
 
-    card.appendChild(el('div', 'text-sm text-[var(--text)]', wo.customerName));
-    card.appendChild(el('div', 'text-xs text-[var(--text-muted)] mt-1', `${wo.type} - ${wo.scheduledDate}`));
+    card.appendChild(el('div', 'text-sm text-[var(--text)]', wo.customerId));
+    card.appendChild(el('div', 'text-xs text-[var(--text-muted)] mt-1', `${wo.type} - ${wo.scheduledDate || 'Unscheduled'}`));
     if (wo.description) {
       card.appendChild(el('div', 'text-xs text-[var(--text-muted)] mt-1 truncate', wo.description));
     }
+
+    // Assign button
+    const assignBtn = el('button', 'mt-2 px-3 py-1 rounded text-xs font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Assign');
+    assignBtn.type = 'button';
+    assignBtn.addEventListener('click', () => onAssign(wo.id));
+    card.appendChild(assignBtn);
 
     list.appendChild(card);
   }
@@ -91,39 +107,38 @@ function buildUnassignedQueue(workOrders: UnassignedWO[]): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
-// Technician Lanes
+// Assigned Work Orders Panel
 // ---------------------------------------------------------------------------
 
-function buildTechnicianLanes(technicians: Technician[]): HTMLElement {
+function buildAssignedPanel(
+  assignedWOs: { id: string; number: string; customerId: string; priority: string; assignedTo: string; scheduledDate: string }[],
+): HTMLElement {
   const section = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4');
-  section.appendChild(el('h2', 'text-lg font-semibold text-[var(--text)] mb-3', 'Technicians'));
+  section.appendChild(el('h2', 'text-lg font-semibold text-[var(--text)] mb-3', 'Assigned / In Progress'));
 
-  if (technicians.length === 0) {
-    section.appendChild(el('p', 'text-[var(--text-muted)] text-sm', 'No technicians configured.'));
+  if (assignedWOs.length === 0) {
+    section.appendChild(el('p', 'text-[var(--text-muted)] text-sm', 'No assigned work orders.'));
     return section;
   }
 
-  const lanes = el('div', 'space-y-3');
-  for (const tech of technicians) {
-    const lane = el('div', 'bg-[var(--surface)] border border-[var(--border)] rounded-md p-3 min-h-[80px]');
-    lane.dataset.techId = tech.id;
+  const list = el('div', 'space-y-2');
+  for (const wo of assignedWOs) {
+    const card = el('div', 'bg-[var(--surface)] border border-[var(--border)] rounded-md p-3');
 
-    const header = el('div', 'flex items-center justify-between mb-2');
-    header.appendChild(el('span', 'text-sm font-medium text-[var(--text)]', tech.name));
-    const countBadge = el('span', 'px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--accent)]/10 text-[var(--accent)]',
-      `${tech.assignedCount} assigned`);
-    header.appendChild(countBadge);
-    lane.appendChild(header);
+    const topRow = el('div', 'flex items-center justify-between mb-1');
+    topRow.appendChild(el('span', 'font-mono text-sm text-[var(--accent)]', wo.number));
+    const prioBadge = el('span', `px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_BADGE[wo.priority] ?? PRIORITY_BADGE.medium}`,
+      wo.priority);
+    topRow.appendChild(prioBadge);
+    card.appendChild(topRow);
 
-    lane.appendChild(el('div', 'text-xs text-[var(--text-muted)]', `Status: ${tech.status}`));
+    card.appendChild(el('div', 'text-sm text-[var(--text)]', wo.customerId));
+    card.appendChild(el('div', 'text-xs text-[var(--text-muted)] mt-1', `Assigned to: ${wo.assignedTo || '--'}`));
+    card.appendChild(el('div', 'text-xs text-[var(--text-muted)]', `Scheduled: ${wo.scheduledDate || '--'}`));
 
-    // Drop zone placeholder
-    const dropZone = el('div', 'mt-2 border-2 border-dashed border-[var(--border)] rounded p-2 text-center text-xs text-[var(--text-muted)]', 'Drop work order here');
-    lane.appendChild(dropZone);
-
-    lanes.appendChild(lane);
+    list.appendChild(card);
   }
-  section.appendChild(lanes);
+  section.appendChild(list);
 
   return section;
 }
@@ -139,36 +154,125 @@ export default {
 
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Dispatch Board'));
+
     const refreshBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]', 'Refresh');
     refreshBtn.type = 'button';
-    refreshBtn.addEventListener('click', () => { /* refresh placeholder */ });
     headerRow.appendChild(refreshBtn);
     wrapper.appendChild(headerRow);
 
-    // Summary stats
-    const statsRow = el('div', 'grid grid-cols-4 gap-4 mb-4');
-    const buildStat = (label: string, value: string, accent?: boolean): HTMLElement => {
-      const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4');
-      card.appendChild(el('div', 'text-sm text-[var(--text-muted)] mb-1', label));
-      card.appendChild(el('div', `text-xl font-bold ${accent ? 'text-[var(--accent)]' : 'text-[var(--text)]'}`, value));
-      return card;
-    };
-    statsRow.appendChild(buildStat('Unassigned', '0', true));
-    statsRow.appendChild(buildStat('In Progress', '0'));
-    statsRow.appendChild(buildStat('Emergency', '0'));
-    statsRow.appendChild(buildStat('Completed Today', '0'));
-    wrapper.appendChild(statsRow);
+    // Stats row placeholder
+    const statsContainer = el('div');
+    wrapper.appendChild(statsContainer);
 
-    // Two-column layout
-    const grid = el('div', 'grid grid-cols-2 gap-4');
+    // Loading indicator
+    const loadingEl = el('div', 'text-center py-8 text-[var(--text-muted)]', 'Loading dispatch board...');
+    wrapper.appendChild(loadingEl);
 
-    const unassigned: UnassignedWO[] = [];
-    grid.appendChild(buildUnassignedQueue(unassigned));
+    // Two-column layout container
+    const gridContainer = el('div');
+    wrapper.appendChild(gridContainer);
 
-    const technicians: Technician[] = [];
-    grid.appendChild(buildTechnicianLanes(technicians));
-
-    wrapper.appendChild(grid);
     container.appendChild(wrapper);
+
+    const loadData = async () => {
+      loadingEl.textContent = 'Loading dispatch board...';
+      loadingEl.style.display = '';
+      gridContainer.innerHTML = '';
+      statsContainer.innerHTML = '';
+
+      try {
+        const svc = getServiceMgmtService();
+
+        // Load WOs by status in parallel
+        const [openWOs, assignedWOs, inProgressWOs, completedWOs] = await Promise.all([
+          svc.getWorkOrdersByStatus('open'),
+          svc.getWorkOrdersByStatus('assigned'),
+          svc.getWorkOrdersByStatus('in_progress'),
+          svc.getWorkOrdersByStatus('completed'),
+        ]);
+
+        // Hide loading
+        loadingEl.style.display = 'none';
+
+        // Emergency count across all statuses
+        const allActive = [...openWOs, ...assignedWOs, ...inProgressWOs];
+        const emergencyCount = allActive.filter(wo => wo.priority === 'emergency').length;
+
+        // Today's completed count
+        const today = new Date().toISOString().split('T')[0];
+        const completedToday = completedWOs.filter(wo => wo.completedDate === today).length;
+
+        // Summary stats
+        const statsRow = el('div', 'grid grid-cols-4 gap-4 mb-4');
+        const buildStat = (label: string, value: string, accent?: boolean): HTMLElement => {
+          const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4');
+          card.appendChild(el('div', 'text-sm text-[var(--text-muted)] mb-1', label));
+          card.appendChild(el('div', `text-xl font-bold ${accent ? 'text-[var(--accent)]' : 'text-[var(--text)]'}`, value));
+          return card;
+        };
+        statsRow.appendChild(buildStat('Unassigned', String(openWOs.length), true));
+        statsRow.appendChild(buildStat('In Progress', String(inProgressWOs.length)));
+        statsRow.appendChild(buildStat('Emergency', String(emergencyCount), emergencyCount > 0));
+        statsRow.appendChild(buildStat('Completed Today', String(completedToday)));
+        statsContainer.appendChild(statsRow);
+
+        // Map open WOs to unassigned display rows
+        const unassigned: UnassignedWO[] = openWOs.map(wo => ({
+          id: wo.id,
+          number: wo.number,
+          customerId: wo.customerId,
+          priority: wo.priority,
+          type: wo.type,
+          scheduledDate: wo.scheduledDate ?? '',
+          description: wo.description ?? wo.problemDescription ?? '',
+        }));
+
+        // Map assigned/in-progress WOs for the right panel
+        const assignedDisplay = [...assignedWOs, ...inProgressWOs].map(wo => ({
+          id: wo.id,
+          number: wo.number,
+          customerId: wo.customerId,
+          priority: wo.priority,
+          assignedTo: wo.assignedTo ?? '',
+          scheduledDate: wo.scheduledDate ?? '',
+        }));
+
+        // Two-column layout
+        const grid = el('div', 'grid grid-cols-2 gap-4');
+
+        // Unassigned queue with assign action
+        grid.appendChild(buildUnassignedQueue(unassigned, async (woId: string) => {
+          const technicianId = prompt('Enter technician ID to assign:');
+          if (!technicianId) return;
+
+          try {
+            await svc.dispatch(woId, technicianId.trim());
+            showMsg('Work order dispatched successfully.', 'success');
+            await loadData();
+          } catch (err: unknown) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            showMsg(`Dispatch failed: ${errMsg}`, 'error');
+          }
+        }));
+
+        // Assigned panel
+        grid.appendChild(buildAssignedPanel(assignedDisplay));
+
+        gridContainer.appendChild(grid);
+      } catch (err: unknown) {
+        loadingEl.style.display = 'none';
+        const errMsg = err instanceof Error ? err.message : String(err);
+        showMsg(`Failed to load dispatch board: ${errMsg}`, 'error');
+        gridContainer.appendChild(el('div', 'text-center py-8 text-red-400', `Error loading dispatch board: ${errMsg}`));
+      }
+    };
+
+    // Wire refresh button
+    refreshBtn.addEventListener('click', () => {
+      loadData();
+    });
+
+    // Initial load
+    loadData();
   },
 };

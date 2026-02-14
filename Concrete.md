@@ -1030,20 +1030,20 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Service Management for service/maintenance contractors
 
-- [ ] Service agreement master (customer, scope, terms, recurring schedule)
-- [ ] Work order creation: scheduled, on-demand, emergency
-- [ ] Work order dispatch and assignment
-- [ ] Technician time and material tracking
-- [ ] Flat-rate pricing / T&M pricing
-- [ ] Parts/inventory tracking per work order
-- [ ] Customer equipment/asset registry
-- [ ] Preventive maintenance scheduling
-- [ ] Service call routing and priority
-- [ ] Work order billing and invoicing
-- [ ] Service profitability analysis
-- [ ] Customer service history
-- [ ] Import work orders from CSV
-- [ ] Export service reports to PDF/CSV
+- [x] Service agreement master (customer, scope, terms, recurring schedule)
+- [x] Work order creation: scheduled, on-demand, emergency
+- [x] Work order dispatch and assignment
+- [x] Technician time and material tracking
+- [x] Flat-rate pricing / T&M pricing
+- [x] Parts/inventory tracking per work order
+- [x] Customer equipment/asset registry
+- [x] Preventive maintenance scheduling
+- [x] Service call routing and priority
+- [x] Work order billing and invoicing
+- [x] Service profitability analysis
+- [x] Customer service history
+- [x] Import work orders from CSV
+- [x] Export service reports to PDF/CSV
 
 ---
 
