@@ -1071,22 +1071,22 @@ plugin/customField    plugin/script
 
 > Scale from 10 to 1,000,000 employees
 
-- [ ] Employee lifecycle: recruit → hire → onboard → active → terminate → rehire
-- [ ] Position management and org chart
-- [ ] Skills and certification tracking (OSHA 10/30, CDL, crane, confined space, etc.)
-- [ ] Certification expiration alerts
-- [ ] Training record management
-- [ ] Benefits administration: health, dental, vision, 401k, HSA
-- [ ] Open enrollment workflow
-- [ ] PTO/leave management (vacation, sick, FMLA, military, jury)
-- [ ] Employee self-service portal (Phase 26+)
-- [ ] Applicant tracking (basic)
-- [ ] New hire reporting (state compliance)
-- [ ] EEO-1 reporting
-- [ ] I-9 / E-Verify tracking
-- [ ] Employee document storage (per-employee folder)
-- [ ] Import employees from CSV (merge by SSN or employee ID)
-- [ ] Export employee roster to CSV
+- [x] Employee lifecycle: recruit → hire → onboard → active → terminate → rehire
+- [x] Position management and org chart
+- [x] Skills and certification tracking (OSHA 10/30, CDL, crane, confined space, etc.)
+- [x] Certification expiration alerts
+- [x] Training record management
+- [x] Benefits administration: health, dental, vision, 401k, HSA
+- [x] Open enrollment workflow
+- [x] PTO/leave management (vacation, sick, FMLA, military, jury)
+- [x] Employee self-service portal (Phase 26+)
+- [x] Applicant tracking (basic)
+- [x] New hire reporting (state compliance)
+- [x] EEO-1 reporting
+- [x] I-9 / E-Verify tracking
+- [x] Employee document storage (per-employee folder)
+- [x] Import employees from CSV (merge by SSN or employee ID)
+- [x] Export employee roster to CSV
 
 ---
 
