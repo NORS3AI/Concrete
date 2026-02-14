@@ -4,10 +4,14 @@
  * Displays the main executive dashboard with KPI cards for revenue, backlog,
  * GP%, WIP, cash position, AR/AP aging totals. Provides period selector
  * and entity filter controls. Supports drill-down from any KPI card.
+ *
+ * Wired to DashboardService for live KPI computation.
  */
 
-import type { KPIResult } from '../dashboard-service';
+import { getDashboardService } from '../service-accessor';
+import type { KPIResult, PeriodPreset } from '../dashboard-service';
 import {
+  buildKPICard,
   buildKPICardGrid,
   buildKPISummaryTable,
   buildPeriodSelector,
@@ -32,13 +36,28 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+const fmtCurrency = (v: number): string =>
+  v.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
 interface ExecutiveState {
   [key: string]: unknown;
-  period: string;
+  period: PeriodPreset;
   entityId: string;
   executiveKPIs: KPIResult[];
   operationalKPIs: KPIResult[];
@@ -46,27 +65,54 @@ interface ExecutiveState {
 }
 
 // ---------------------------------------------------------------------------
+// Drill-down routing
+// ---------------------------------------------------------------------------
+
+const DRILL_DOWN_ROUTES: Record<string, string> = {
+  revenue_ytd: '#/reports/revenue',
+  gross_profit_pct: '#/reports/job-cost',
+  backlog: '#/dashboard/backlog',
+  wip_total: '#/reports/job-cost',
+  cash_position: '#/reports/cash-flow',
+  ar_aging_total: '#/ar/aging',
+  ap_aging_total: '#/ap/aging',
+  equipment_utilization: '#/dashboard/equipment',
+  payroll_burden_rate: '#/dashboard/payroll',
+  safety_emr: '#/dashboard/safety',
+  bonding_utilized_pct: '#/dashboard/backlog',
+  overbilling_total: '#/reports/job-cost',
+  underbilling_total: '#/reports/job-cost',
+};
+
+function handleDrillDown(kpiCode: string): void {
+  const route = DRILL_DOWN_ROUTES[kpiCode];
+  if (route) {
+    window.location.hash = route;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Sub-views
 // ---------------------------------------------------------------------------
 
-function buildRevenueSection(kpis: KPIResult[], onDrillDown: (code: string) => void): HTMLElement {
+function buildRevenueSection(kpis: KPIResult[]): HTMLElement {
   const financialKPIs = kpis.filter(
     (k) => ['revenue_ytd', 'gross_profit_pct', 'backlog', 'wip_total', 'cash_position'].includes(k.code),
   );
-  const grid = buildKPICardGrid(financialKPIs, onDrillDown, 3);
+  const grid = buildKPICardGrid(financialKPIs, handleDrillDown, 3);
   return buildSection('Financial Overview', grid);
 }
 
-function buildAgingSection(kpis: KPIResult[], onDrillDown: (code: string) => void): HTMLElement {
+function buildAgingSection(kpis: KPIResult[]): HTMLElement {
   const agingKPIs = kpis.filter(
     (k) => ['ar_aging_total', 'ap_aging_total'].includes(k.code),
   );
-  const grid = buildKPICardGrid(agingKPIs, onDrillDown, 2);
+  const grid = buildKPICardGrid(agingKPIs, handleDrillDown, 2);
   return buildSection('Accounts Aging', grid);
 }
 
-function buildOperationalSection(kpis: KPIResult[], onDrillDown: (code: string) => void): HTMLElement {
-  const table = buildKPISummaryTable(kpis, onDrillDown);
+function buildOperationalSection(kpis: KPIResult[]): HTMLElement {
+  const table = buildKPISummaryTable(kpis, handleDrillDown);
   return buildSection('Operational Metrics', table);
 }
 
@@ -99,6 +145,35 @@ function buildQuickLinks(): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
+// Content Builder
+// ---------------------------------------------------------------------------
+
+function buildContent(state: ExecutiveState): HTMLElement {
+  const content = el('div', 'space-y-0');
+
+  if (state.executiveKPIs.length === 0 && state.operationalKPIs.length === 0) {
+    content.appendChild(
+      buildEmptyState(
+        'No KPI data available yet. Record benchmark data or connect live data sources to populate the executive dashboard.',
+        'Configure Dashboard',
+        () => { window.location.hash = '#/dashboard/configure'; },
+      ),
+    );
+  } else {
+    if (state.executiveKPIs.length > 0) {
+      content.appendChild(buildRevenueSection(state.executiveKPIs));
+      content.appendChild(buildAgingSection(state.executiveKPIs));
+    }
+    if (state.operationalKPIs.length > 0) {
+      content.appendChild(buildOperationalSection(state.operationalKPIs));
+    }
+  }
+
+  content.appendChild(buildQuickLinks());
+  return content;
+}
+
+// ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
@@ -107,7 +182,6 @@ export default {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
-    // State
     const state: ExecutiveState = {
       period: 'ytd',
       entityId: '',
@@ -116,62 +190,63 @@ export default {
       entities: [],
     };
 
-    // Header with controls
+    // Content area that gets replaced on reload
+    let contentArea = el('div');
+    wrapper.appendChild(contentArea);
+
+    // ------------------------------------------------------------------
+    // Reload: fetch KPIs from DashboardService and rebuild content
+    // ------------------------------------------------------------------
+    async function reload(): Promise<void> {
+      try {
+        const svc = getDashboardService();
+
+        const [execKPIs, opsKPIs] = await Promise.all([
+          svc.computeExecutiveKPIs(state.entityId || undefined, state.period),
+          svc.computeOperationalKPIs(state.entityId || undefined, state.period),
+        ]);
+
+        state.executiveKPIs = execKPIs;
+        state.operationalKPIs = opsKPIs;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load KPI data';
+        showMsg(wrapper, message, true);
+        state.executiveKPIs = [];
+        state.operationalKPIs = [];
+      }
+
+      // Replace content area
+      const newContent = buildContent(state);
+      contentArea.replaceWith(newContent);
+      contentArea = newContent;
+    }
+
+    // ------------------------------------------------------------------
+    // Header controls with live callbacks
+    // ------------------------------------------------------------------
     const periodSelector = buildPeriodSelector(state.period, (period: string) => {
-      state.period = period;
+      state.period = period as PeriodPreset;
+      reload();
     });
+
     const entityFilter = buildEntityFilter(state.entities, state.entityId, (entityId: string) => {
       state.entityId = entityId;
+      reload();
     });
+
     const header = buildDashboardHeader(
       'Executive Dashboard',
       'Key financial and operational metrics at a glance',
       periodSelector,
       entityFilter,
     );
-    wrapper.appendChild(header);
 
-    // Drill-down handler
-    const handleDrillDown = (kpiCode: string) => {
-      const routes: Record<string, string> = {
-        revenue_ytd: '#/gl/journal',
-        gross_profit_pct: '#/dashboard/jobs',
-        backlog: '#/dashboard/backlog',
-        wip_total: '#/dashboard/jobs',
-        cash_position: '#/gl/journal',
-        ar_aging_total: '#/ar/aging',
-        ap_aging_total: '#/ap/aging',
-        equipment_utilization: '#/dashboard/equipment',
-        payroll_burden_rate: '#/dashboard/payroll',
-        safety_emr: '#/dashboard/safety',
-        bonding_utilized_pct: '#/dashboard/backlog',
-        overbilling_total: '#/dashboard/jobs',
-        underbilling_total: '#/dashboard/jobs',
-      };
-      const route = routes[kpiCode];
-      if (route) {
-        window.location.hash = route;
-      }
-    };
-
-    // KPI sections (initially empty - will show empty state)
-    if (state.executiveKPIs.length === 0 && state.operationalKPIs.length === 0) {
-      wrapper.appendChild(
-        buildEmptyState(
-          'No KPI data available yet. Record benchmark data or connect live data sources to populate the executive dashboard.',
-          'Configure Dashboard',
-          () => { window.location.hash = '#/dashboard/configure'; },
-        ),
-      );
-    } else {
-      wrapper.appendChild(buildRevenueSection(state.executiveKPIs, handleDrillDown));
-      wrapper.appendChild(buildAgingSection(state.executiveKPIs, handleDrillDown));
-      wrapper.appendChild(buildOperationalSection(state.operationalKPIs, handleDrillDown));
-    }
-
-    // Quick links
-    wrapper.appendChild(buildQuickLinks());
+    // Insert header before content area
+    wrapper.insertBefore(header, contentArea);
 
     container.appendChild(wrapper);
+
+    // Initial load
+    reload();
   },
 };

@@ -4,14 +4,22 @@
  * Displays payroll burden rates, burden breakdown by category (taxes,
  * insurance, benefits, union), burden trends over time, and per-employee
  * burden analysis. Supports period selector and entity filter.
+ *
+ * Wired to DashboardService for live KPI data.
  */
 
+import { getDashboardService } from '../service-accessor';
+import type { KPIResult, PeriodPreset } from '../dashboard-service';
 import {
+  buildKPICard,
+  buildKPICardGrid,
   buildPeriodSelector,
   buildEntityFilter,
   buildDashboardHeader,
   buildSection,
   buildEmptyState,
+  buildKPISummaryTable,
+  formatKPIValue,
 } from './kpi-cards';
 
 // ---------------------------------------------------------------------------
@@ -29,147 +37,140 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
 const fmtCurrency = (v: number): string =>
   v.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
-const fmtPercent = (v: number): string => `${v.toFixed(1)}%`;
-
 // ---------------------------------------------------------------------------
-// Types
+// State
 // ---------------------------------------------------------------------------
 
-interface BurdenCategory {
+interface PayrollState {
   [key: string]: unknown;
-  category: string;
-  amount: number;
-  percentage: number;
+  period: PeriodPreset;
+  entityId: string;
+  entities: { id: string; name: string }[];
+  burdenRateKPI: KPIResult | null;
+  operationalKPIs: KPIResult[];
+  detailKPIs: KPIResult[];
 }
 
-interface PayrollSummary {
-  [key: string]: unknown;
-  totalBaseWages: number;
-  totalBurden: number;
-  burdenRate: number;
-  employeeCount: number;
-  averageBurdenPerEmployee: number;
-}
+// ---------------------------------------------------------------------------
+// Data Loading
+// ---------------------------------------------------------------------------
 
-interface EmployeeBurdenRow {
-  [key: string]: unknown;
-  employeeId: string;
-  employeeName: string;
-  baseWages: number;
-  burdenAmount: number;
-  burdenRate: number;
-  classification: string;
+async function loadPayrollData(state: PayrollState): Promise<void> {
+  const svc = getDashboardService();
+
+  // Load the primary payroll burden rate KPI
+  state.burdenRateKPI = await svc.computeKPI(
+    'payroll_burden_rate',
+    state.entityId || undefined,
+    state.period,
+  ).catch(() => null);
+
+  // Load all operational KPIs and filter for payroll-related codes
+  const operationalKPIs = await svc.computeOperationalKPIs(
+    state.entityId || undefined,
+    state.period,
+  );
+  state.operationalKPIs = operationalKPIs.filter(
+    (k) => ['payroll_burden_rate', 'safety_emr'].includes(k.code),
+  );
+
+  // Build detail KPIs from all operational metrics for the summary table
+  state.detailKPIs = operationalKPIs.filter(
+    (k) => ['payroll_burden_rate', 'safety_emr', 'equipment_utilization'].includes(k.code),
+  );
+
+  // Load entities for the filter from benchmarks
+  const benchmarks = await svc.getBenchmarks();
+  const entityMap = new Map<string, string>();
+  for (const b of benchmarks) {
+    if (b.entityId && !entityMap.has(b.entityId)) {
+      entityMap.set(b.entityId, b.entityId);
+    }
+  }
+  state.entities = Array.from(entityMap.entries()).map(([id, name]) => ({ id, name }));
 }
 
 // ---------------------------------------------------------------------------
 // Sub-views
 // ---------------------------------------------------------------------------
 
-function buildPayrollSummaryCards(summary: PayrollSummary): HTMLElement {
-  const grid = el('div', 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4');
+function buildPayrollSummaryCards(state: PayrollState): HTMLElement {
+  const kpis: KPIResult[] = [];
+  if (state.burdenRateKPI) kpis.push(state.burdenRateKPI);
 
-  const cards = [
-    { label: 'Total Base Wages', value: fmtCurrency(summary.totalBaseWages), cls: 'text-[var(--text)]' },
-    { label: 'Total Burden', value: fmtCurrency(summary.totalBurden), cls: 'text-amber-400' },
-    { label: 'Burden Rate', value: fmtPercent(summary.burdenRate), cls: summary.burdenRate <= 45 ? 'text-emerald-400' : 'text-red-400' },
-    { label: 'Employees', value: summary.employeeCount.toString(), cls: 'text-[var(--text)]' },
-    { label: 'Avg. Burden/Employee', value: fmtCurrency(summary.averageBurdenPerEmployee), cls: 'text-[var(--text)]' },
-  ];
-
-  for (const card of cards) {
-    const cardEl = el('div', 'p-4 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)]');
-    cardEl.appendChild(el('div', 'text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide mb-1', card.label));
-    cardEl.appendChild(el('div', `text-2xl font-bold ${card.cls}`, card.value));
-    grid.appendChild(cardEl);
+  // Add additional operational KPIs not already included
+  for (const kpi of state.operationalKPIs) {
+    if (!kpis.find((k) => k.code === kpi.code)) {
+      kpis.push(kpi);
+    }
   }
 
-  return grid;
+  if (kpis.length === 0) {
+    return buildEmptyState('No payroll KPI data available. Record benchmark data to see burden metrics.');
+  }
+
+  return buildKPICardGrid(kpis, (code) => {
+    window.location.hash = '#/reports/payroll';
+  }, 4);
 }
 
-function buildBurdenBreakdown(categories: BurdenCategory[]): HTMLElement {
-  const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
-  const table = el('table', 'w-full text-sm');
-
-  const thead = el('thead');
-  const headRow = el('tr', 'text-left text-[var(--text-muted)] border-b border-[var(--border)]');
-  for (const col of ['Category', 'Amount', 'Percentage']) {
-    const align = col !== 'Category' ? 'py-2 px-3 font-medium text-right' : 'py-2 px-3 font-medium';
-    headRow.appendChild(el('th', align, col));
-  }
-  thead.appendChild(headRow);
-  table.appendChild(thead);
-
-  const tbody = el('tbody');
-  if (categories.length === 0) {
-    const tr = el('tr');
-    const td = el('td', 'py-6 px-3 text-center text-[var(--text-muted)]', 'No burden data available.');
-    td.setAttribute('colspan', '3');
-    tr.appendChild(td);
-    tbody.appendChild(tr);
+function buildBurdenHighlight(state: PayrollState): HTMLElement {
+  if (!state.burdenRateKPI) {
+    return buildEmptyState('Payroll burden rate data not available.');
   }
 
-  for (const cat of categories) {
-    const tr = el('tr', 'border-b border-[var(--border)] hover:bg-[var(--surface)] transition-colors');
-    tr.appendChild(el('td', 'py-2 px-3 font-medium text-[var(--text)]', cat.category));
-    tr.appendChild(el('td', 'py-2 px-3 text-right font-mono', fmtCurrency(cat.amount)));
-    tr.appendChild(el('td', 'py-2 px-3 text-right font-mono', fmtPercent(cat.percentage)));
-    tbody.appendChild(tr);
-  }
-
-  table.appendChild(tbody);
-  wrap.appendChild(table);
-  return wrap;
-}
-
-function buildBurdenTrendChart(): HTMLElement {
+  const kpi = state.burdenRateKPI;
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6');
-  const placeholder = el('div', 'flex items-center justify-center h-48 text-[var(--text-muted)]', 'Payroll burden trend chart will render here when Chart.js is connected and payroll data is available.');
-  wrap.appendChild(placeholder);
-  return wrap;
-}
 
-function buildEmployeeBurdenTable(rows: EmployeeBurdenRow[]): HTMLElement {
-  const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
-  const table = el('table', 'w-full text-sm');
+  const headerRow = el('div', 'flex items-center justify-between mb-4');
+  headerRow.appendChild(el('h3', 'text-base font-semibold text-[var(--text)]', 'Burden Rate Overview'));
 
-  const thead = el('thead');
-  const headRow = el('tr', 'text-left text-[var(--text-muted)] border-b border-[var(--border)]');
-  for (const col of ['Employee', 'Classification', 'Base Wages', 'Burden', 'Burden Rate']) {
-    const align = ['Base Wages', 'Burden', 'Burden Rate'].includes(col)
-      ? 'py-2 px-3 font-medium text-right'
-      : 'py-2 px-3 font-medium';
-    headRow.appendChild(el('th', align, col));
-  }
-  thead.appendChild(headRow);
-  table.appendChild(thead);
-
-  const tbody = el('tbody');
-  if (rows.length === 0) {
-    const tr = el('tr');
-    const td = el('td', 'py-6 px-3 text-center text-[var(--text-muted)]', 'No employee burden data available.');
-    td.setAttribute('colspan', '5');
-    tr.appendChild(td);
-    tbody.appendChild(tr);
+  // Color-code burden rate: <=35% emerald, 35-50% amber, >50% red
+  let colorCls: string;
+  let statusLabel: string;
+  if (kpi.value <= 35) {
+    colorCls = 'text-emerald-400';
+    statusLabel = 'Low';
+  } else if (kpi.value <= 50) {
+    colorCls = 'text-amber-400';
+    statusLabel = 'Moderate';
+  } else {
+    colorCls = 'text-red-400';
+    statusLabel = 'High';
   }
 
-  for (const row of rows) {
-    const tr = el('tr', 'border-b border-[var(--border)] hover:bg-[var(--surface)] transition-colors');
-    tr.appendChild(el('td', 'py-2 px-3 font-medium text-[var(--text)]', row.employeeName));
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', row.classification));
-    tr.appendChild(el('td', 'py-2 px-3 text-right font-mono', fmtCurrency(row.baseWages)));
-    tr.appendChild(el('td', 'py-2 px-3 text-right font-mono text-amber-400', fmtCurrency(row.burdenAmount)));
+  const badge = el('span', `px-2 py-0.5 rounded-full text-xs font-medium ${
+    kpi.value <= 35 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+    kpi.value <= 50 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+    'bg-red-500/10 text-red-400 border border-red-500/20'
+  }`, statusLabel);
+  headerRow.appendChild(badge);
+  wrap.appendChild(headerRow);
 
-    const rateCls = row.burdenRate <= 45 ? 'text-emerald-400' : 'text-red-400';
-    tr.appendChild(el('td', `py-2 px-3 text-right font-mono ${rateCls}`, fmtPercent(row.burdenRate)));
+  const valueEl = el('div', `text-4xl font-bold ${colorCls}`, formatKPIValue(kpi.value, kpi.format));
+  wrap.appendChild(valueEl);
 
-    tbody.appendChild(tr);
+  if (kpi.target !== undefined) {
+    wrap.appendChild(el('div', 'text-sm text-[var(--text-muted)] mt-2', `Target: ${formatKPIValue(kpi.target, kpi.format)}`));
   }
 
-  table.appendChild(tbody);
-  wrap.appendChild(table);
+  wrap.appendChild(el('div', 'text-xs text-[var(--text-muted)] mt-1', kpi.periodLabel));
+
   return wrap;
 }
 
@@ -177,53 +178,117 @@ function buildEmployeeBurdenTable(rows: EmployeeBurdenRow[]): HTMLElement {
 // Render
 // ---------------------------------------------------------------------------
 
+function renderContent(container: HTMLElement, wrapper: HTMLElement, state: PayrollState): void {
+  wrapper.innerHTML = '';
+
+  // Header with controls
+  const periodSelector = buildPeriodSelector(state.period, (period: string) => {
+    state.period = period as PeriodPreset;
+    reload(container, state);
+  });
+  const entityFilter = buildEntityFilter(state.entities, state.entityId, (entityId: string) => {
+    state.entityId = entityId;
+    reload(container, state);
+  });
+  const header = buildDashboardHeader(
+    'Payroll Burden Analysis',
+    'Burden rates, breakdown by category, and per-employee analysis',
+    periodSelector,
+    entityFilter,
+  );
+  wrapper.appendChild(header);
+
+  // Summary KPI cards: Total Payroll, Burden Rate %, Total Hours, Avg Hourly Cost
+  wrapper.appendChild(buildSection('Payroll Summary', buildPayrollSummaryCards(state)));
+
+  // Burden rate highlight with color-coding
+  wrapper.appendChild(buildSection('Burden Rate Overview', buildBurdenHighlight(state)));
+
+  // Burden breakdown section using buildKPISummaryTable for detailed breakdown
+  wrapper.appendChild(
+    buildSection(
+      'Burden Breakdown',
+      state.detailKPIs.length > 0
+        ? buildKPISummaryTable(state.detailKPIs, (code) => {
+            window.location.hash = '#/reports/payroll';
+          })
+        : buildEmptyState('No burden breakdown data available. Record benchmark data to see the detailed breakdown.'),
+    ),
+  );
+
+  // Trend chart placeholder
+  wrapper.appendChild(
+    buildSection('Burden Trend', buildEmptyState('Payroll burden trend coming in Phase 26+')),
+  );
+
+  // Employee burden table showing operational KPIs
+  wrapper.appendChild(
+    buildSection(
+      'Employee Burden Detail',
+      state.operationalKPIs.length > 0
+        ? buildKPISummaryTable(state.operationalKPIs, (code) => {
+            window.location.hash = '#/reports/payroll';
+          })
+        : buildEmptyState('No employee burden data available. Process payroll runs to see per-employee analysis.'),
+    ),
+  );
+
+  // Drill-down link
+  const linkRow = el('div', 'mb-8');
+  const link = el('a', 'text-sm text-[var(--accent)] hover:underline font-medium', 'View detailed payroll report \u2192') as HTMLAnchorElement;
+  link.href = '#/reports/payroll';
+  linkRow.appendChild(link);
+  wrapper.appendChild(linkRow);
+}
+
+async function reload(container: HTMLElement, state: PayrollState): Promise<void> {
+  const wrapper = container.querySelector('[data-payroll-wrapper]') as HTMLElement;
+  if (!wrapper) return;
+
+  try {
+    await loadPayrollData(state);
+    renderContent(container, wrapper, state);
+  } catch (err) {
+    showMsg(wrapper, `Failed to load payroll data: ${err instanceof Error ? err.message : String(err)}`, true);
+  }
+}
+
 export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
-
-    // Header
-    const periodSelector = buildPeriodSelector('ytd', () => {});
-    const entityFilter = buildEntityFilter([], '', () => {});
-    const header = buildDashboardHeader(
-      'Payroll Burden Analysis',
-      'Burden rates, breakdown by category, and per-employee analysis',
-      periodSelector,
-      entityFilter,
-    );
-    wrapper.appendChild(header);
-
-    // Summary
-    const summary: PayrollSummary = {
-      totalBaseWages: 0,
-      totalBurden: 0,
-      burdenRate: 0,
-      employeeCount: 0,
-      averageBurdenPerEmployee: 0,
-    };
-    wrapper.appendChild(buildSection('Payroll Summary', buildPayrollSummaryCards(summary)));
-
-    // Burden breakdown
-    const categories: BurdenCategory[] = [];
-    wrapper.appendChild(buildSection('Burden Breakdown', buildBurdenBreakdown(categories)));
-
-    // Trend chart
-    wrapper.appendChild(buildSection('Burden Trend', buildBurdenTrendChart()));
-
-    // Employee table
-    const employeeRows: EmployeeBurdenRow[] = [];
-    wrapper.appendChild(buildSection('Employee Burden Detail', buildEmployeeBurdenTable(employeeRows)));
-
-    if (employeeRows.length === 0) {
-      wrapper.appendChild(
-        buildEmptyState(
-          'No payroll data available. Process payroll runs to see burden analysis.',
-          'Go to Payroll',
-          () => { window.location.hash = '#/payroll/runs'; },
-        ),
-      );
-    }
-
+    wrapper.setAttribute('data-payroll-wrapper', '1');
     container.appendChild(wrapper);
+
+    // Initial loading state
+    const loadingMsg = el('div', 'flex items-center justify-center py-12 text-[var(--text-muted)]', 'Loading payroll data...');
+    wrapper.appendChild(loadingMsg);
+
+    // Initialize state
+    const state: PayrollState = {
+      period: 'ytd',
+      entityId: '',
+      entities: [],
+      burdenRateKPI: null,
+      operationalKPIs: [],
+      detailKPIs: [],
+    };
+
+    // Load data and render
+    loadPayrollData(state)
+      .then(() => {
+        renderContent(container, wrapper, state);
+      })
+      .catch((err) => {
+        wrapper.innerHTML = '';
+        showMsg(wrapper, `Failed to load payroll data: ${err instanceof Error ? err.message : String(err)}`, true);
+        wrapper.appendChild(
+          buildEmptyState(
+            'No payroll data available. Process payroll runs to see burden analysis.',
+            'Go to Payroll',
+            () => { window.location.hash = '#/payroll/runs'; },
+          ),
+        );
+      });
   },
 };

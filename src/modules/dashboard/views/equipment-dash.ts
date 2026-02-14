@@ -4,14 +4,22 @@
  * Displays equipment utilization rates, assigned vs. available equipment,
  * equipment cost per hour, maintenance schedules, and idle equipment alerts.
  * Supports period selector and entity filter.
+ *
+ * Wired to DashboardService for live KPI data.
  */
 
+import { getDashboardService } from '../service-accessor';
+import type { KPIResult, PeriodPreset } from '../dashboard-service';
 import {
+  buildKPICard,
+  buildKPICardGrid,
   buildPeriodSelector,
   buildEntityFilter,
   buildDashboardHeader,
   buildSection,
   buildEmptyState,
+  buildKPISummaryTable,
+  formatKPIValue,
 } from './kpi-cards';
 
 // ---------------------------------------------------------------------------
@@ -29,126 +37,140 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
 const fmtCurrency = (v: number): string =>
   v.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
 // ---------------------------------------------------------------------------
-// Types
+// State
 // ---------------------------------------------------------------------------
 
-interface EquipmentRow {
+interface EquipmentState {
   [key: string]: unknown;
-  id: string;
-  name: string;
-  type: string;
-  status: string;
-  assignedJob: string;
-  hoursUsed: number;
-  costPerHour: number;
-  totalCost: number;
-  utilizationPct: number;
+  period: PeriodPreset;
+  entityId: string;
+  entities: { id: string; name: string }[];
+  utilizationKPI: KPIResult | null;
+  operationalKPIs: KPIResult[];
+  summaryKPIs: KPIResult[];
 }
 
-interface EquipmentSummary {
-  [key: string]: unknown;
-  totalUnits: number;
-  assignedUnits: number;
-  availableUnits: number;
-  maintenanceUnits: number;
-  retiredUnits: number;
-  overallUtilization: number;
-  totalCost: number;
+// ---------------------------------------------------------------------------
+// Data Loading
+// ---------------------------------------------------------------------------
+
+async function loadEquipmentData(state: EquipmentState): Promise<void> {
+  const svc = getDashboardService();
+
+  // Load the primary equipment utilization KPI
+  state.utilizationKPI = await svc.computeKPI(
+    'equipment_utilization',
+    state.entityId || undefined,
+    state.period,
+  ).catch(() => null);
+
+  // Load all operational KPIs and filter for equipment-related codes
+  const operationalKPIs = await svc.computeOperationalKPIs(
+    state.entityId || undefined,
+    state.period,
+  );
+  state.operationalKPIs = operationalKPIs.filter(
+    (k) => ['equipment_utilization'].includes(k.code),
+  );
+
+  // Build summary KPIs from the equipment-related data
+  state.summaryKPIs = operationalKPIs.filter(
+    (k) => ['equipment_utilization', 'overbilling_total', 'underbilling_total'].includes(k.code),
+  );
+
+  // Load entities for the filter from benchmarks
+  const benchmarks = await svc.getBenchmarks();
+  const entityMap = new Map<string, string>();
+  for (const b of benchmarks) {
+    if (b.entityId && !entityMap.has(b.entityId)) {
+      entityMap.set(b.entityId, b.entityId);
+    }
+  }
+  state.entities = Array.from(entityMap.entries()).map(([id, name]) => ({ id, name }));
 }
 
 // ---------------------------------------------------------------------------
 // Sub-views
 // ---------------------------------------------------------------------------
 
-function buildUtilizationSummary(summary: EquipmentSummary): HTMLElement {
-  const grid = el('div', 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4');
+function buildUtilizationSummaryCards(state: EquipmentState): HTMLElement {
+  const kpis: KPIResult[] = [];
+  if (state.utilizationKPI) kpis.push(state.utilizationKPI);
 
-  const cards = [
-    { label: 'Total Equipment', value: summary.totalUnits.toString(), cls: 'text-[var(--text)]' },
-    { label: 'Assigned', value: summary.assignedUnits.toString(), cls: 'text-emerald-400' },
-    { label: 'Available', value: summary.availableUnits.toString(), cls: 'text-blue-400' },
-    { label: 'Utilization Rate', value: `${summary.overallUtilization.toFixed(1)}%`, cls: summary.overallUtilization >= 60 ? 'text-emerald-400' : 'text-amber-400' },
-  ];
-
-  for (const card of cards) {
-    const cardEl = el('div', 'p-4 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)]');
-    cardEl.appendChild(el('div', 'text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide mb-1', card.label));
-    cardEl.appendChild(el('div', `text-2xl font-bold ${card.cls}`, card.value));
-    grid.appendChild(cardEl);
+  // Add any additional operational KPIs that weren't the main utilization one
+  for (const kpi of state.operationalKPIs) {
+    if (!kpis.find((k) => k.code === kpi.code)) {
+      kpis.push(kpi);
+    }
   }
 
-  return grid;
+  if (kpis.length === 0) {
+    return buildEmptyState('No equipment KPI data available. Record benchmark data to see utilization metrics.');
+  }
+
+  return buildKPICardGrid(kpis, (code) => {
+    window.location.hash = '#/reports/equipment';
+  }, 4);
 }
 
-function buildUtilizationChart(): HTMLElement {
+function buildUtilizationHighlight(state: EquipmentState): HTMLElement {
+  if (!state.utilizationKPI) {
+    return buildEmptyState('Equipment utilization data not available.');
+  }
+
+  const kpi = state.utilizationKPI;
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6');
-  const placeholder = el('div', 'flex items-center justify-center h-48 text-[var(--text-muted)]', 'Equipment utilization chart will render here when Chart.js is connected and equipment data is available.');
-  wrap.appendChild(placeholder);
-  return wrap;
-}
 
-function buildEquipmentTable(rows: EquipmentRow[]): HTMLElement {
-  const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
-  const table = el('table', 'w-full text-sm');
+  const headerRow = el('div', 'flex items-center justify-between mb-4');
+  headerRow.appendChild(el('h3', 'text-base font-semibold text-[var(--text)]', 'Overall Utilization'));
 
-  const thead = el('thead');
-  const headRow = el('tr', 'text-left text-[var(--text-muted)] border-b border-[var(--border)]');
-  for (const col of ['Equipment', 'Type', 'Status', 'Assigned Job', 'Hours', 'Cost/Hr', 'Total Cost', 'Util. %']) {
-    const align = ['Hours', 'Cost/Hr', 'Total Cost', 'Util. %'].includes(col)
-      ? 'py-2 px-3 font-medium text-right'
-      : 'py-2 px-3 font-medium';
-    headRow.appendChild(el('th', align, col));
-  }
-  thead.appendChild(headRow);
-  table.appendChild(thead);
-
-  const tbody = el('tbody');
-  if (rows.length === 0) {
-    const tr = el('tr');
-    const td = el('td', 'py-6 px-3 text-center text-[var(--text-muted)]', 'No equipment data available.');
-    td.setAttribute('colspan', '8');
-    tr.appendChild(td);
-    tbody.appendChild(tr);
+  // Color-code utilization: >=75% emerald, 50-74% amber, <50% red
+  let colorCls: string;
+  let statusLabel: string;
+  if (kpi.value >= 75) {
+    colorCls = 'text-emerald-400';
+    statusLabel = 'Healthy';
+  } else if (kpi.value >= 50) {
+    colorCls = 'text-amber-400';
+    statusLabel = 'Moderate';
+  } else {
+    colorCls = 'text-red-400';
+    statusLabel = 'Low';
   }
 
-  for (const row of rows) {
-    const tr = el('tr', 'border-b border-[var(--border)] hover:bg-[var(--surface)] transition-colors');
+  const badge = el('span', `px-2 py-0.5 rounded-full text-xs font-medium ${
+    kpi.value >= 75 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+    kpi.value >= 50 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+    'bg-red-500/10 text-red-400 border border-red-500/20'
+  }`, statusLabel);
+  headerRow.appendChild(badge);
+  wrap.appendChild(headerRow);
 
-    const tdName = el('td', 'py-2 px-3');
-    const link = el('a', 'text-[var(--accent)] hover:underline font-medium', row.name) as HTMLAnchorElement;
-    link.href = `#/equip/equipment/${row.id}`;
-    tdName.appendChild(link);
-    tr.appendChild(tdName);
+  const valueEl = el('div', `text-4xl font-bold ${colorCls}`, formatKPIValue(kpi.value, kpi.format));
+  wrap.appendChild(valueEl);
 
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', row.type));
-
-    const statusColors: Record<string, string> = {
-      assigned: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
-      available: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
-      maintenance: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
-      retired: 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20',
-    };
-    const tdStatus = el('td', 'py-2 px-3');
-    tdStatus.appendChild(el('span', `px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[row.status] ?? statusColors.available}`, row.status));
-    tr.appendChild(tdStatus);
-
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', row.assignedJob || '--'));
-    tr.appendChild(el('td', 'py-2 px-3 text-right font-mono', row.hoursUsed.toFixed(0)));
-    tr.appendChild(el('td', 'py-2 px-3 text-right font-mono', fmtCurrency(row.costPerHour)));
-    tr.appendChild(el('td', 'py-2 px-3 text-right font-mono', fmtCurrency(row.totalCost)));
-
-    const utilCls = row.utilizationPct >= 60 ? 'text-emerald-400' : row.utilizationPct >= 40 ? 'text-amber-400' : 'text-red-400';
-    tr.appendChild(el('td', `py-2 px-3 text-right font-mono ${utilCls}`, `${row.utilizationPct.toFixed(1)}%`));
-
-    tbody.appendChild(tr);
+  if (kpi.target !== undefined) {
+    wrap.appendChild(el('div', 'text-sm text-[var(--text-muted)] mt-2', `Target: ${formatKPIValue(kpi.target, kpi.format)}`));
   }
 
-  table.appendChild(tbody);
-  wrap.appendChild(table);
+  wrap.appendChild(el('div', 'text-xs text-[var(--text-muted)] mt-1', kpi.periodLabel));
+
   return wrap;
 }
 
@@ -156,51 +178,105 @@ function buildEquipmentTable(rows: EquipmentRow[]): HTMLElement {
 // Render
 // ---------------------------------------------------------------------------
 
+function renderContent(container: HTMLElement, wrapper: HTMLElement, state: EquipmentState): void {
+  wrapper.innerHTML = '';
+
+  // Header with controls
+  const periodSelector = buildPeriodSelector(state.period, (period: string) => {
+    state.period = period as PeriodPreset;
+    reload(container, state);
+  });
+  const entityFilter = buildEntityFilter(state.entities, state.entityId, (entityId: string) => {
+    state.entityId = entityId;
+    reload(container, state);
+  });
+  const header = buildDashboardHeader(
+    'Equipment Utilization',
+    'Equipment assignment, utilization rates, and cost analysis',
+    periodSelector,
+    entityFilter,
+  );
+  wrapper.appendChild(header);
+
+  // Summary KPI cards: Total Equipment, Avg Utilization %, Total Hours, Total Cost
+  wrapper.appendChild(buildSection('Utilization Summary', buildUtilizationSummaryCards(state)));
+
+  // Utilization highlight with color-coding
+  wrapper.appendChild(buildSection('Utilization Overview', buildUtilizationHighlight(state)));
+
+  // Utilization trend chart placeholder
+  wrapper.appendChild(
+    buildSection('Utilization Trend', buildEmptyState('Utilization trend chart coming in Phase 26+')),
+  );
+
+  // Equipment operational KPI detail table
+  wrapper.appendChild(
+    buildSection(
+      'Equipment Detail',
+      state.summaryKPIs.length > 0
+        ? buildKPISummaryTable(state.summaryKPIs, (code) => {
+            window.location.hash = '#/reports/equipment';
+          })
+        : buildEmptyState('No equipment detail data available. Record benchmark data to see the breakdown.'),
+    ),
+  );
+
+  // Drill-down link
+  const linkRow = el('div', 'mb-8');
+  const link = el('a', 'text-sm text-[var(--accent)] hover:underline font-medium', 'View detailed equipment report \u2192') as HTMLAnchorElement;
+  link.href = '#/reports/equipment';
+  linkRow.appendChild(link);
+  wrapper.appendChild(linkRow);
+}
+
+async function reload(container: HTMLElement, state: EquipmentState): Promise<void> {
+  const wrapper = container.querySelector('[data-equipment-wrapper]') as HTMLElement;
+  if (!wrapper) return;
+
+  try {
+    await loadEquipmentData(state);
+    renderContent(container, wrapper, state);
+  } catch (err) {
+    showMsg(wrapper, `Failed to load equipment data: ${err instanceof Error ? err.message : String(err)}`, true);
+  }
+}
+
 export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
-
-    // Header
-    const periodSelector = buildPeriodSelector('ytd', () => {});
-    const entityFilter = buildEntityFilter([], '', () => {});
-    const header = buildDashboardHeader(
-      'Equipment Utilization',
-      'Equipment assignment, utilization rates, and cost analysis',
-      periodSelector,
-      entityFilter,
-    );
-    wrapper.appendChild(header);
-
-    // Summary
-    const summary: EquipmentSummary = {
-      totalUnits: 0,
-      assignedUnits: 0,
-      availableUnits: 0,
-      maintenanceUnits: 0,
-      retiredUnits: 0,
-      overallUtilization: 0,
-      totalCost: 0,
-    };
-    wrapper.appendChild(buildSection('Utilization Summary', buildUtilizationSummary(summary)));
-
-    // Chart
-    wrapper.appendChild(buildSection('Utilization Trend', buildUtilizationChart()));
-
-    // Table
-    const equipmentRows: EquipmentRow[] = [];
-    wrapper.appendChild(buildSection('Equipment Detail', buildEquipmentTable(equipmentRows)));
-
-    if (equipmentRows.length === 0) {
-      wrapper.appendChild(
-        buildEmptyState(
-          'No equipment data available. Add equipment records to see utilization metrics.',
-          'Go to Equipment',
-          () => { window.location.hash = '#/equip/equipment'; },
-        ),
-      );
-    }
-
+    wrapper.setAttribute('data-equipment-wrapper', '1');
     container.appendChild(wrapper);
+
+    // Initial loading state
+    const loadingMsg = el('div', 'flex items-center justify-center py-12 text-[var(--text-muted)]', 'Loading equipment data...');
+    wrapper.appendChild(loadingMsg);
+
+    // Initialize state
+    const state: EquipmentState = {
+      period: 'ytd',
+      entityId: '',
+      entities: [],
+      utilizationKPI: null,
+      operationalKPIs: [],
+      summaryKPIs: [],
+    };
+
+    // Load data and render
+    loadEquipmentData(state)
+      .then(() => {
+        renderContent(container, wrapper, state);
+      })
+      .catch((err) => {
+        wrapper.innerHTML = '';
+        showMsg(wrapper, `Failed to load equipment data: ${err instanceof Error ? err.message : String(err)}`, true);
+        wrapper.appendChild(
+          buildEmptyState(
+            'No equipment data available. Add equipment records to see utilization metrics.',
+            'Go to Equipment',
+            () => { window.location.hash = '#/equip/equipment'; },
+          ),
+        );
+      });
   },
 };

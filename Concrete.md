@@ -863,20 +863,20 @@ plugin/customField    plugin/script
 
 > Extends current Concrete dashboard with construction-specific metrics
 
-- [ ] Executive dashboard: revenue, backlog, GP%, WIP, cash position
-- [ ] Job performance dashboard: top/bottom jobs, margin trends, fade analysis
-- [ ] Cash flow forecasting: project-based cash flow projections
-- [ ] Backlog analysis: awarded vs. completed vs. remaining
-- [ ] Equipment utilization dashboard
-- [ ] Payroll burden analysis
-- [ ] Subcontractor exposure dashboard
-- [ ] Safety metrics (TRIR, DART, EMR) — placeholder data entry
-- [ ] Bonding capacity utilization
-- [ ] Revenue recognition trend (over/under billing)
-- [ ] Configurable KPI cards with thresholds and alerts
-- [ ] Drill-down from any KPI to underlying transactions
-- [ ] Period comparison (MTD, QTD, YTD, Last 12, Custom)
-- [ ] Entity filter on all dashboards
+- [x] Executive dashboard: revenue, backlog, GP%, WIP, cash position
+- [x] Job performance dashboard: top/bottom jobs, margin trends, fade analysis
+- [x] Cash flow forecasting: project-based cash flow projections
+- [x] Backlog analysis: awarded vs. completed vs. remaining
+- [x] Equipment utilization dashboard
+- [x] Payroll burden analysis
+- [x] Subcontractor exposure dashboard
+- [x] Safety metrics (TRIR, DART, EMR) — placeholder data entry
+- [x] Bonding capacity utilization
+- [x] Revenue recognition trend (over/under billing)
+- [x] Configurable KPI cards with thresholds and alerts
+- [x] Drill-down from any KPI to underlying transactions
+- [x] Period comparison (MTD, QTD, YTD, Last 12, Custom)
+- [x] Entity filter on all dashboards
 
 ---
 

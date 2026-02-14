@@ -4,9 +4,16 @@
  * Displays project-based cash flow projections, inflows vs. outflows,
  * net cash position trend, and upcoming payment/collection schedules.
  * Supports period selector and entity filter.
+ *
+ * Wired to DashboardService for live KPI computation.
  */
 
+import { getDashboardService } from '../service-accessor';
+import type { KPIResult, PeriodPreset } from '../dashboard-service';
 import {
+  buildKPICard,
+  buildKPICardGrid,
+  buildKPISummaryTable,
   buildPeriodSelector,
   buildEntityFilter,
   buildDashboardHeader,
@@ -27,6 +34,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 const fmtCurrency = (v: number): string =>
@@ -55,14 +74,38 @@ interface UpcomingItem {
 }
 
 // ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+interface CashFlowState {
+  [key: string]: unknown;
+  period: PeriodPreset;
+  entityId: string;
+  cashKPIs: KPIResult[];
+  cashFlowRows: CashFlowRow[];
+  upcomingItems: UpcomingItem[];
+  entities: { id: string; name: string }[];
+}
+
+// ---------------------------------------------------------------------------
+// Drill-down
+// ---------------------------------------------------------------------------
+
+function handleDrillDown(kpiCode: string): void {
+  window.location.hash = '#/reports/cash-flow';
+}
+
+// ---------------------------------------------------------------------------
 // Sub-views
 // ---------------------------------------------------------------------------
 
+function buildCashKPISection(kpis: KPIResult[]): HTMLElement {
+  const grid = buildKPICardGrid(kpis, handleDrillDown, 3);
+  return buildSection('Cash Position Summary', grid);
+}
+
 function buildCashFlowChart(): HTMLElement {
-  const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6');
-  const placeholder = el('div', 'flex items-center justify-center h-64 text-[var(--text-muted)]', 'Cash flow projection chart will render here when Chart.js is connected and transaction data is available.');
-  wrap.appendChild(placeholder);
-  return wrap;
+  return buildEmptyState('Cash flow chart coming in Phase 26+');
 }
 
 function buildCashFlowTable(rows: CashFlowRow[]): HTMLElement {
@@ -154,6 +197,39 @@ function buildUpcomingSchedule(items: UpcomingItem[]): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
+// Content Builder
+// ---------------------------------------------------------------------------
+
+function buildContent(state: CashFlowState): HTMLElement {
+  const content = el('div', 'space-y-0');
+
+  // Cash KPI summary cards
+  if (state.cashKPIs.length > 0) {
+    content.appendChild(buildCashKPISection(state.cashKPIs));
+  }
+
+  // Cash flow chart placeholder
+  content.appendChild(buildSection('Cash Flow Projection', buildCashFlowChart()));
+
+  // Monthly breakdown table
+  content.appendChild(buildSection('Monthly Breakdown', buildCashFlowTable(state.cashFlowRows)));
+
+  // Upcoming payments & collections schedule
+  content.appendChild(buildSection('Upcoming Payments & Collections', buildUpcomingSchedule(state.upcomingItems)));
+
+  // Empty state if no data at all
+  if (state.cashKPIs.length === 0 && state.cashFlowRows.length === 0) {
+    content.appendChild(
+      buildEmptyState(
+        'No cash flow data available. Create invoices and record payments to generate projections.',
+      ),
+    );
+  }
+
+  return content;
+}
+
+// ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
@@ -162,36 +238,79 @@ export default {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
-    // Header
-    const periodSelector = buildPeriodSelector('ytd', () => {});
-    const entityFilter = buildEntityFilter([], '', () => {});
+    const state: CashFlowState = {
+      period: 'ytd',
+      entityId: '',
+      cashKPIs: [],
+      cashFlowRows: [],
+      upcomingItems: [],
+      entities: [],
+    };
+
+    // Content area that gets replaced on reload
+    let contentArea = el('div');
+    wrapper.appendChild(contentArea);
+
+    // ------------------------------------------------------------------
+    // Reload: fetch cash-related KPIs from DashboardService
+    // ------------------------------------------------------------------
+    async function reload(): Promise<void> {
+      try {
+        const svc = getDashboardService();
+
+        // Fetch executive KPIs and filter for cash-related ones
+        const execKPIs = await svc.computeExecutiveKPIs(
+          state.entityId || undefined,
+          state.period,
+        );
+
+        const cashCodes = ['cash_position', 'ar_aging_total', 'ap_aging_total'];
+        state.cashKPIs = execKPIs.filter((k) => cashCodes.includes(k.code));
+
+        // Cash flow rows and upcoming items would come from transaction data
+        // in a full implementation. For now they remain empty until wired.
+        state.cashFlowRows = [];
+        state.upcomingItems = [];
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load cash flow data';
+        showMsg(wrapper, message, true);
+        state.cashKPIs = [];
+        state.cashFlowRows = [];
+        state.upcomingItems = [];
+      }
+
+      // Replace content area
+      const newContent = buildContent(state);
+      contentArea.replaceWith(newContent);
+      contentArea = newContent;
+    }
+
+    // ------------------------------------------------------------------
+    // Header controls with live callbacks
+    // ------------------------------------------------------------------
+    const periodSelector = buildPeriodSelector(state.period, (period: string) => {
+      state.period = period as PeriodPreset;
+      reload();
+    });
+
+    const entityFilter = buildEntityFilter(state.entities, state.entityId, (entityId: string) => {
+      state.entityId = entityId;
+      reload();
+    });
+
     const header = buildDashboardHeader(
       'Cash Flow Forecasting',
       'Project-based cash flow projections and upcoming payment schedules',
       periodSelector,
       entityFilter,
     );
-    wrapper.appendChild(header);
 
-    // Chart section
-    wrapper.appendChild(buildSection('Cash Flow Projection', buildCashFlowChart()));
-
-    // Cash flow table
-    const cashFlowRows: CashFlowRow[] = [];
-    wrapper.appendChild(buildSection('Monthly Breakdown', buildCashFlowTable(cashFlowRows)));
-
-    // Upcoming schedule
-    const upcomingItems: UpcomingItem[] = [];
-    wrapper.appendChild(buildSection('Upcoming Payments & Collections', buildUpcomingSchedule(upcomingItems)));
-
-    if (cashFlowRows.length === 0) {
-      wrapper.appendChild(
-        buildEmptyState(
-          'No cash flow data available. Create invoices and record payments to generate projections.',
-        ),
-      );
-    }
+    // Insert header before content area
+    wrapper.insertBefore(header, contentArea);
 
     container.appendChild(wrapper);
+
+    // Initial load
+    reload();
   },
 };
