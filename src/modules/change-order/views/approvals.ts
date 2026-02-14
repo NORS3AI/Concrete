@@ -3,6 +3,8 @@
  * Pending approval queue with approve/reject actions and approval chain display.
  */
 
+import { getChangeOrderService } from '../service-accessor';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -19,6 +21,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(msg: string, type: 'success' | 'error' | 'info' = 'info'): void {
+  const colors: Record<string, string> = {
+    success: 'bg-emerald-600',
+    error: 'bg-red-600',
+    info: 'bg-blue-600',
+  };
+  const toast = el('div', `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-white text-sm shadow-lg ${colors[type]}`);
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 // ---------------------------------------------------------------------------
@@ -58,7 +72,11 @@ interface ApprovalHistoryRow {
 // Pending Approvals Table
 // ---------------------------------------------------------------------------
 
-function buildPendingTable(rows: PendingApprovalRow[]): HTMLElement {
+function buildPendingTable(
+  rows: PendingApprovalRow[],
+  onApprove: (id: string) => void,
+  onReject: (id: string) => void,
+): HTMLElement {
   const section = el('div', 'space-y-3');
   section.appendChild(el('h2', 'text-lg font-semibold text-[var(--text)] mb-2', 'Pending Approvals'));
 
@@ -102,12 +120,12 @@ function buildPendingTable(rows: PendingApprovalRow[]): HTMLElement {
 
     const approveBtn = el('button', 'px-3 py-1 rounded text-xs font-medium bg-emerald-600 text-white hover:opacity-90', 'Approve');
     approveBtn.type = 'button';
-    approveBtn.addEventListener('click', () => { /* approve placeholder */ });
+    approveBtn.addEventListener('click', () => onApprove(row.id));
     actionsRow.appendChild(approveBtn);
 
     const rejectBtn = el('button', 'px-3 py-1 rounded text-xs font-medium bg-red-600 text-white hover:opacity-90', 'Reject');
     rejectBtn.type = 'button';
-    rejectBtn.addEventListener('click', () => { /* reject placeholder */ });
+    rejectBtn.addEventListener('click', () => onReject(row.id));
     actionsRow.appendChild(rejectBtn);
 
     tdActions.appendChild(actionsRow);
@@ -177,8 +195,55 @@ function buildApprovalHistory(rows: ApprovalHistoryRow[]): HTMLElement {
 // Render
 // ---------------------------------------------------------------------------
 
-export default {
-  render(container: HTMLElement): void {
+async function loadAndRender(container: HTMLElement): Promise<void> {
+  const svc = getChangeOrderService();
+
+  // Show loading state
+  container.innerHTML = '';
+  const loadingEl = el('div', 'flex items-center justify-center py-12 text-[var(--text-muted)]', 'Loading approvals...');
+  container.appendChild(loadingEl);
+
+  try {
+    // Load pending approvals and enrich with CO data
+    const pendingApprovals = await svc.getPendingApprovals();
+
+    const pendingRows: PendingApprovalRow[] = [];
+    const changeOrderIds = new Set<string>();
+
+    for (const approval of pendingApprovals) {
+      changeOrderIds.add(approval.changeOrderId);
+      const co = await svc.getChangeOrder(approval.changeOrderId);
+      pendingRows.push({
+        id: approval.id,
+        coNumber: co?.number ?? 'N/A',
+        coTitle: co?.title ?? 'Unknown',
+        coType: co?.type ?? 'unknown',
+        amount: co?.amount ?? 0,
+        submittedDate: approval.date ?? '-',
+        status: approval.status,
+      });
+    }
+
+    // Load recent approval history from the approval chains of visible COs
+    const historyRows: ApprovalHistoryRow[] = [];
+    for (const coId of changeOrderIds) {
+      const chain = await svc.getApprovalChain(coId);
+      for (const entry of chain) {
+        historyRows.push({
+          approver: entry.approverId,
+          role: entry.approverRole ?? '-',
+          status: entry.status,
+          date: entry.date ?? '-',
+          comments: entry.comments ?? '',
+          sequence: entry.sequence,
+        });
+      }
+    }
+
+    // Sort history by date descending
+    historyRows.sort((a, b) => b.date.localeCompare(a.date));
+
+    // Build the UI
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
@@ -186,12 +251,48 @@ export default {
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Change Order Approvals'));
     wrapper.appendChild(headerRow);
 
-    const pendingRows: PendingApprovalRow[] = [];
-    wrapper.appendChild(buildPendingTable(pendingRows));
+    const handleApprove = async (approvalId: string) => {
+      const comments = prompt('Approval comments (optional):');
+      try {
+        await svc.approve(approvalId, comments ?? undefined);
+        showMsg('Change order approved successfully.', 'success');
+        await loadAndRender(container);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        showMsg(`Approve failed: ${message}`, 'error');
+      }
+    };
 
-    const historyRows: ApprovalHistoryRow[] = [];
+    const handleReject = async (approvalId: string) => {
+      const comments = prompt('Rejection reason (required):');
+      if (!comments) {
+        showMsg('Rejection requires a reason.', 'error');
+        return;
+      }
+      try {
+        await svc.reject(approvalId, comments);
+        showMsg('Change order rejected.', 'success');
+        await loadAndRender(container);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        showMsg(`Reject failed: ${message}`, 'error');
+      }
+    };
+
+    wrapper.appendChild(buildPendingTable(pendingRows, handleApprove, handleReject));
     wrapper.appendChild(buildApprovalHistory(historyRows));
 
     container.appendChild(wrapper);
+  } catch (err: unknown) {
+    container.innerHTML = '';
+    const message = err instanceof Error ? err.message : String(err);
+    const errorEl = el('div', 'flex items-center justify-center py-12 text-red-400', `Failed to load approvals: ${message}`);
+    container.appendChild(errorEl);
+  }
+}
+
+export default {
+  render(container: HTMLElement): void {
+    loadAndRender(container);
   },
 };

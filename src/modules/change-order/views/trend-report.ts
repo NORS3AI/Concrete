@@ -3,6 +3,8 @@
  * CO volume chart placeholder, cost by job table, period comparison.
  */
 
+import { getChangeOrderService } from '../service-accessor';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -19,6 +21,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(msg: string, type: 'success' | 'error' | 'info' = 'info'): void {
+  const colors: Record<string, string> = {
+    success: 'bg-emerald-600',
+    error: 'bg-red-600',
+    info: 'bg-blue-600',
+  };
+  const toast = el('div', `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-white text-sm shadow-lg ${colors[type]}`);
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 // ---------------------------------------------------------------------------
@@ -150,30 +164,115 @@ function buildJobCostTable(rows: JobCostRow[]): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
+// Export CSV
+// ---------------------------------------------------------------------------
+
+function exportTrendCsv(periodRows: TrendPeriodRow[], jobRows: JobCostRow[]): void {
+  const lines: string[] = [];
+
+  // Period section
+  lines.push('Period Comparison');
+  lines.push('Period,Count,Total Amount,Approved Amount');
+  for (const row of periodRows) {
+    lines.push(`${row.period},${row.count},${row.totalAmount},${row.approvedAmount}`);
+  }
+
+  lines.push('');
+
+  // Job cost section
+  lines.push('Cost by Job');
+  lines.push('Job,Total COs,Approved,Pending,Rejected,Net Impact');
+  for (const row of jobRows) {
+    lines.push(`"${row.jobName.replace(/"/g, '""')}",${row.totalCOs},${row.approvedAmount},${row.pendingAmount},${row.rejectedAmount},${row.netImpact}`);
+  }
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `change-order-trend-${new Date().toISOString().split('T')[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
-export default {
-  render(container: HTMLElement): void {
+async function loadAndRender(container: HTMLElement): Promise<void> {
+  const svc = getChangeOrderService();
+
+  // Show loading state
+  container.innerHTML = '';
+  const loadingEl = el('div', 'flex items-center justify-center py-12 text-[var(--text-muted)]', 'Loading trend report...');
+  container.appendChild(loadingEl);
+
+  try {
+    // Load trend data for all jobs
+    const trendPeriods = await svc.getChangeOrderTrend('__all__');
+
+    const periodRows: TrendPeriodRow[] = trendPeriods.map((tp) => ({
+      period: tp.period,
+      count: tp.count,
+      totalAmount: tp.totalAmount,
+      approvedAmount: tp.approvedAmount,
+    }));
+
+    // Load all COs, extract unique job IDs, and get per-job summaries
+    const allCOs = await svc.listChangeOrders();
+    const uniqueJobIds = new Set<string>();
+    for (const co of allCOs) {
+      if (co.jobId) {
+        uniqueJobIds.add(co.jobId);
+      }
+    }
+
+    const jobRows: JobCostRow[] = [];
+    for (const jobId of uniqueJobIds) {
+      const summary = await svc.getJobChangeOrderSummary(jobId);
+      const totalCOs = summary.totalApproved + summary.totalPending + summary.totalRejected + summary.totalExecuted;
+      jobRows.push({
+        jobId: summary.jobId,
+        jobName: summary.jobId,
+        totalCOs,
+        approvedAmount: summary.approvedAmount,
+        pendingAmount: summary.pendingAmount,
+        rejectedAmount: summary.rejectedAmount,
+        netImpact: summary.netCostImpact,
+      });
+    }
+
+    // Build the UI
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Change Order Trend Report'));
+
     const exportBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]', 'Export');
     exportBtn.type = 'button';
-    exportBtn.addEventListener('click', () => { /* export placeholder */ });
+    exportBtn.addEventListener('click', () => {
+      exportTrendCsv(periodRows, jobRows);
+      showMsg('Trend report exported successfully.', 'success');
+    });
     headerRow.appendChild(exportBtn);
     wrapper.appendChild(headerRow);
 
     wrapper.appendChild(buildChartPlaceholder());
-
-    const periodRows: TrendPeriodRow[] = [];
     wrapper.appendChild(buildPeriodTable(periodRows));
-
-    const jobRows: JobCostRow[] = [];
     wrapper.appendChild(buildJobCostTable(jobRows));
 
     container.appendChild(wrapper);
+  } catch (err: unknown) {
+    container.innerHTML = '';
+    const message = err instanceof Error ? err.message : String(err);
+    const errorEl = el('div', 'flex items-center justify-center py-12 text-red-400', `Failed to load trend report: ${message}`);
+    container.appendChild(errorEl);
+  }
+}
+
+export default {
+  render(container: HTMLElement): void {
+    loadAndRender(container);
   },
 };

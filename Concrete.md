@@ -1012,17 +1012,17 @@ plugin/customField    plugin/script
 
 > Track all changes across the project lifecycle
 
-- [ ] Change order types: Owner CO, Subcontractor CO, Internal CO
-- [ ] Change order request (COR) / potential change order (PCO) workflow
-- [ ] Cost impact analysis (labor, material, sub, equipment, markup)
-- [ ] Schedule impact analysis (time extension)
-- [ ] Approval workflow (multi-level)
-- [ ] Change order log with status tracking
-- [ ] Integration with job cost (auto-adjust budget on approval)
-- [ ] Integration with billing (add to schedule of values)
-- [ ] Integration with subcontracts (flow-down changes)
-- [ ] Trend report: change order volume and cost by job
-- [ ] Export change order log to CSV/PDF
+- [x] Change order types: Owner CO, Subcontractor CO, Internal CO
+- [x] Change order request (COR) / potential change order (PCO) workflow
+- [x] Cost impact analysis (labor, material, sub, equipment, markup)
+- [x] Schedule impact analysis (time extension)
+- [x] Approval workflow (multi-level)
+- [x] Change order log with status tracking
+- [x] Integration with job cost (auto-adjust budget on approval)
+- [x] Integration with billing (add to schedule of values)
+- [x] Integration with subcontracts (flow-down changes)
+- [x] Trend report: change order volume and cost by job
+- [x] Export change order log to CSV/PDF
 
 ---
 
