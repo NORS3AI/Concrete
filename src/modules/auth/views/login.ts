@@ -1,8 +1,10 @@
 /**
  * Login view.
  * Login form with username/email, password, and MFA code fields.
- * Includes SSO provider buttons.
+ * Includes SSO provider buttons. Wired to AuthService.
  */
+
+import { getAuthService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -17,6 +19,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -45,7 +59,7 @@ function textInput(name: string, placeholder: string, type?: string): HTMLInputE
 // SSO Buttons
 // ---------------------------------------------------------------------------
 
-function buildSSOButtons(): HTMLElement {
+function buildSSOButtons(formEl: HTMLElement): HTMLElement {
   const section = el('div', 'mt-6');
   section.appendChild(el('div', 'relative mb-4'));
   const divider = el('div', 'flex items-center gap-3 mb-4');
@@ -72,7 +86,9 @@ function buildSSOButtons(): HTMLElement {
     const iconSpan = el('span', 'w-5 h-5 flex items-center justify-center rounded bg-[var(--surface)] text-xs font-bold text-[var(--accent)]', provider.icon);
     btn.appendChild(iconSpan);
     btn.appendChild(el('span', '', provider.label));
-    btn.addEventListener('click', () => { /* SSO login placeholder */ });
+    btn.addEventListener('click', () => {
+      showMsg(formEl, `SSO login via ${provider.label} requires cloud deployment configuration.`, false);
+    });
     btnGrid.appendChild(btn);
   }
 
@@ -88,6 +104,8 @@ export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
 
+    const svc = getAuthService();
+
     const outer = el('div', 'min-h-screen flex items-center justify-center bg-[var(--surface)]');
     const card = el('div', 'w-full max-w-md bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-8');
 
@@ -99,11 +117,6 @@ export default {
 
     // Login Form
     const form = el('form', '');
-
-    // Error message area (hidden by default)
-    const errorDiv = el('div', 'hidden mb-4 p-3 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 text-sm');
-    errorDiv.id = 'login-error';
-    form.appendChild(errorDiv);
 
     form.appendChild(buildField('Username or Email', textInput('usernameOrEmail', 'Enter username or email')));
     form.appendChild(buildField('Password', textInput('password', 'Enter password', 'password')));
@@ -146,13 +159,77 @@ export default {
     // Login button
     const loginBtn = el('button', 'w-full px-4 py-2.5 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Sign In');
     loginBtn.type = 'button';
-    loginBtn.addEventListener('click', () => { /* login placeholder */ });
+    loginBtn.addEventListener('click', async () => {
+      const usernameOrEmail = (form.querySelector('[name="usernameOrEmail"]') as HTMLInputElement).value.trim();
+      const password = (form.querySelector('[name="password"]') as HTMLInputElement).value;
+      const mfaCode = (form.querySelector('[name="mfaCode"]') as HTMLInputElement).value.trim();
+
+      if (!usernameOrEmail || !password) {
+        showMsg(form, 'Please enter your username/email and password.', true);
+        return;
+      }
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Signing in...';
+
+      try {
+        const result = await svc.login({
+          username: usernameOrEmail,
+          email: usernameOrEmail,
+          password,
+          ipAddress: 'browser',
+          userAgent: navigator.userAgent,
+        });
+
+        // If the user has MFA enabled, we need to verify the code
+        if (result.user.mfaEnabled) {
+          if (!mfaCode) {
+            // Show MFA field and ask user to provide the code
+            mfaGroup.style.display = 'block';
+            showMsg(form, 'MFA is enabled for this account. Please enter your 6-digit code.', true);
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Sign In';
+            return;
+          }
+
+          // Verify MFA code
+          const mfaValid = await svc.verifyMFA(result.user.id!, mfaCode);
+          if (!mfaValid) {
+            showMsg(form, 'Invalid MFA code. Please try again.', true);
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Sign In';
+            return;
+          }
+        }
+
+        // Store session in localStorage
+        localStorage.setItem('concrete_session', JSON.stringify({
+          sessionId: result.session.id,
+          userId: result.user.id,
+          username: result.user.username,
+          displayName: result.user.displayName,
+          remember: rememberCheckbox.checked,
+        }));
+
+        showMsg(form, 'Login successful! Redirecting...', false);
+
+        // Navigate to dashboard
+        setTimeout(() => {
+          window.location.hash = '#/dashboard';
+        }, 500);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Login failed. Please check your credentials.';
+        showMsg(form, message, true);
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Sign In';
+      }
+    });
     form.appendChild(loginBtn);
 
     card.appendChild(form);
 
     // SSO Buttons
-    card.appendChild(buildSSOButtons());
+    card.appendChild(buildSSOButtons(form));
 
     // Registration link
     const regRow = el('div', 'text-center mt-6');

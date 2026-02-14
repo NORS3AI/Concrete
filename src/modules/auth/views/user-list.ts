@@ -1,7 +1,10 @@
 /**
  * User List view.
  * Filterable table of users with status badges, role display, and search.
+ * Wired to AuthService for live data.
  */
+
+import { getAuthService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -18,6 +21,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -28,17 +43,6 @@ const STATUS_OPTIONS = [
   { value: 'inactive', label: 'Inactive' },
   { value: 'locked', label: 'Locked' },
   { value: 'pending', label: 'Pending' },
-];
-
-const ROLE_OPTIONS = [
-  { value: '', label: 'All Roles' },
-  { value: 'Admin', label: 'Admin' },
-  { value: 'Controller', label: 'Controller' },
-  { value: 'PM', label: 'PM' },
-  { value: 'AP Clerk', label: 'AP Clerk' },
-  { value: 'Payroll', label: 'Payroll' },
-  { value: 'Field', label: 'Field' },
-  { value: 'Read-Only', label: 'Read-Only' },
 ];
 
 const STATUS_BADGE: Record<string, string> = {
@@ -58,6 +62,7 @@ interface UserRow {
   displayName: string;
   email: string;
   role: string;
+  roleId: string;
   department: string;
   status: string;
   lastLogin: string;
@@ -69,6 +74,7 @@ interface UserRow {
 // ---------------------------------------------------------------------------
 
 function buildFilterBar(
+  roleOptions: { value: string; label: string }[],
   onFilter: (status: string, role: string, search: string) => void,
 ): HTMLElement {
   const bar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
@@ -88,7 +94,7 @@ function buildFilterBar(
   bar.appendChild(statusSelect);
 
   const roleSelect = el('select', inputCls) as HTMLSelectElement;
-  for (const opt of ROLE_OPTIONS) {
+  for (const opt of roleOptions) {
     const o = el('option', '', opt.label) as HTMLOptionElement;
     o.value = opt.value;
     roleSelect.appendChild(o);
@@ -107,7 +113,8 @@ function buildFilterBar(
 // Table
 // ---------------------------------------------------------------------------
 
-function buildTable(users: UserRow[]): HTMLElement {
+function buildTable(users: UserRow[], wrapper: HTMLElement, reRender: () => void): HTMLElement {
+  const svc = getAuthService();
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -140,7 +147,7 @@ function buildTable(users: UserRow[]): HTMLElement {
     tr.appendChild(el('td', 'py-2 px-3 font-medium text-[var(--text)]', user.displayName));
     tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', user.email));
     tr.appendChild(el('td', 'py-2 px-3 text-[var(--text)]', user.role));
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', user.department));
+    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', user.department || ''));
 
     const tdStatus = el('td', 'py-2 px-3');
     const badge = el('span', `px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[user.status] ?? STATUS_BADGE.active}`,
@@ -162,8 +169,26 @@ function buildTable(users: UserRow[]): HTMLElement {
     const editLink = el('a', 'text-[var(--accent)] hover:underline text-sm', 'Edit') as HTMLAnchorElement;
     editLink.href = `#/auth/users/${user.id}`;
     tdActions.appendChild(editLink);
-    tr.appendChild(tdActions);
 
+    // Deactivate button (for active users only)
+    if (user.status === 'active') {
+      const deactivateBtn = el('button', 'text-red-400 hover:underline text-sm ml-2', 'Deactivate');
+      deactivateBtn.type = 'button';
+      deactivateBtn.addEventListener('click', async () => {
+        if (!confirm(`Deactivate user "${user.username}"? They will no longer be able to log in.`)) return;
+        try {
+          await svc.deactivateUser(user.id);
+          showMsg(wrapper, `User "${user.username}" has been deactivated.`, false);
+          reRender();
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Failed to deactivate user.';
+          showMsg(wrapper, message, true);
+        }
+      });
+      tdActions.appendChild(deactivateBtn);
+    }
+
+    tr.appendChild(tdActions);
     tbody.appendChild(tr);
   }
 
@@ -176,20 +201,22 @@ function buildTable(users: UserRow[]): HTMLElement {
 // Summary Cards
 // ---------------------------------------------------------------------------
 
-function buildSummaryCards(): HTMLElement {
+function buildSummaryCards(counts: Record<string, number>): HTMLElement {
   const row = el('div', 'grid grid-cols-4 gap-4 mb-4');
 
-  const buildCard = (label: string, value: string, accent?: boolean): HTMLElement => {
+  const total = (counts.active ?? 0) + (counts.inactive ?? 0) + (counts.locked ?? 0) + (counts.pending ?? 0);
+
+  const buildCard = (label: string, value: string, colorCls?: string): HTMLElement => {
     const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4');
     card.appendChild(el('div', 'text-sm text-[var(--text-muted)] mb-1', label));
-    card.appendChild(el('div', `text-xl font-bold ${accent ? 'text-[var(--accent)]' : 'text-[var(--text)]'}`, value));
+    card.appendChild(el('div', `text-xl font-bold ${colorCls ?? 'text-[var(--text)]'}`, value));
     return card;
   };
 
-  row.appendChild(buildCard('Total Users', '0'));
-  row.appendChild(buildCard('Active', '0', true));
-  row.appendChild(buildCard('Locked', '0'));
-  row.appendChild(buildCard('Pending', '0'));
+  row.appendChild(buildCard('Total Users', String(total)));
+  row.appendChild(buildCard('Active', String(counts.active ?? 0), 'text-emerald-400'));
+  row.appendChild(buildCard('Locked', String(counts.locked ?? 0), 'text-red-400'));
+  row.appendChild(buildCard('Pending', String(counts.pending ?? 0), 'text-amber-400'));
 
   return row;
 }
@@ -201,8 +228,11 @@ function buildSummaryCards(): HTMLElement {
 export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
+
+    const svc = getAuthService();
     const wrapper = el('div', 'space-y-0');
 
+    // Header
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Users'));
     const newBtn = el('a', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90') as HTMLAnchorElement;
@@ -211,11 +241,79 @@ export default {
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildSummaryCards());
-    wrapper.appendChild(buildFilterBar((_status, _role, _search) => { /* filter placeholder */ }));
+    // Load data and render
+    const roles = svc.getRoles();
+    const roleMap = new Map<string, string>();
+    for (const r of roles) {
+      if (r.id) roleMap.set(r.id, r.name);
+    }
 
-    const users: UserRow[] = [];
-    wrapper.appendChild(buildTable(users));
+    // Build role filter options from live data
+    const roleFilterOptions: { value: string; label: string }[] = [
+      { value: '', label: 'All Roles' },
+    ];
+    for (const r of roles) {
+      roleFilterOptions.push({ value: r.id!, label: r.name });
+    }
+
+    const statusCounts = svc.getUserCountByStatus();
+    wrapper.appendChild(buildSummaryCards(statusCounts));
+
+    // State for filtering
+    let currentStatus = '';
+    let currentRoleId = '';
+    let currentSearch = '';
+
+    const tableContainer = el('div', '');
+
+    const self = this;
+    function loadAndRenderTable(): void {
+      // Build server-side filters
+      const filters: { status?: string; roleId?: string; department?: string } = {};
+      if (currentStatus) filters.status = currentStatus;
+      if (currentRoleId) filters.roleId = currentRoleId;
+
+      const allUsers = svc.getUsers(filters);
+
+      // Client-side search filter on username/displayName/email
+      const searchLower = currentSearch.toLowerCase();
+      const filtered = searchLower
+        ? allUsers.filter((u) =>
+            (u.username ?? '').toLowerCase().includes(searchLower) ||
+            (u.displayName ?? '').toLowerCase().includes(searchLower) ||
+            (u.email ?? '').toLowerCase().includes(searchLower),
+          )
+        : allUsers;
+
+      const userRows: UserRow[] = filtered.map((u) => ({
+        id: u.id!,
+        username: u.username ?? '',
+        displayName: u.displayName ?? '',
+        email: u.email ?? '',
+        role: roleMap.get(u.roleId ?? '') ?? 'Unassigned',
+        roleId: u.roleId ?? '',
+        department: u.department ?? '',
+        status: u.status ?? 'active',
+        lastLogin: u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : '',
+        mfaEnabled: u.mfaEnabled ?? false,
+      }));
+
+      tableContainer.innerHTML = '';
+      tableContainer.appendChild(buildTable(userRows, wrapper, () => {
+        // Full re-render on deactivation
+        self.render(container);
+      }));
+    }
+
+    wrapper.appendChild(buildFilterBar(roleFilterOptions, (status, roleId, search) => {
+      currentStatus = status;
+      currentRoleId = roleId;
+      currentSearch = search;
+      loadAndRenderTable();
+    }));
+
+    wrapper.appendChild(tableContainer);
+    loadAndRenderTable();
 
     container.appendChild(wrapper);
   },

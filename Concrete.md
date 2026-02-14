@@ -950,21 +950,21 @@ plugin/customField    plugin/script
 
 > Transition from static to live hosted application
 
-- [ ] Cloudflare Pages deployment pipeline
-- [ ] Cloudflare Workers API layer
-- [ ] Cloudflare D1 database (SQLite at edge)
-- [ ] Cloudflare KV for session/cache
-- [ ] Cloudflare R2 for document/file storage
-- [ ] Authentication: Cloudflare Access (SSO, SAML, OIDC)
-- [ ] User registration and onboarding flow
-- [ ] Role-based access control (RBAC): Admin, Controller, PM, AP Clerk, Payroll, Field, Read-Only
-- [ ] Multi-factor authentication
-- [ ] Session management and timeout
-- [ ] API key generation for integrations
-- [ ] Audit log (who changed what, when)
-- [ ] Data encryption at rest (D1) and in transit (TLS)
-- [ ] CORS and rate limiting configuration
-- [ ] Graceful fallback to static mode if Workers unavailable
+- [x] Cloudflare Pages deployment pipeline
+- [x] Cloudflare Workers API layer
+- [x] Cloudflare D1 database (SQLite at edge)
+- [x] Cloudflare KV for session/cache
+- [x] Cloudflare R2 for document/file storage
+- [x] Authentication: Cloudflare Access (SSO, SAML, OIDC)
+- [x] User registration and onboarding flow
+- [x] Role-based access control (RBAC): Admin, Controller, PM, AP Clerk, Payroll, Field, Read-Only
+- [x] Multi-factor authentication
+- [x] Session management and timeout
+- [x] API key generation for integrations
+- [x] Audit log (who changed what, when)
+- [x] Data encryption at rest (D1) and in transit (TLS)
+- [x] CORS and rate limiting configuration
+- [x] Graceful fallback to static mode if Workers unavailable
 
 ---
 

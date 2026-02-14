@@ -1,5 +1,6 @@
 export { authManifest } from './manifest';
 export { AuthService } from './auth-service';
+export { getAuthService } from './service-accessor';
 export type {
   UserStatus, SSOProvider, AuditSeverity, PermissionAction,
   AuthUser, AuthRole, AuthSession, AuthApiKey, AuditLogEntry,

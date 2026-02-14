@@ -1,7 +1,10 @@
 /**
  * Role List view.
  * Displays roles with permission summary, built-in badge, and user count.
+ * Wired to AuthService for live data.
  */
+
+import { getAuthService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,6 +19,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -36,7 +51,8 @@ interface RoleRow {
 // Table
 // ---------------------------------------------------------------------------
 
-function buildTable(roles: RoleRow[]): HTMLElement {
+function buildTable(roles: RoleRow[], wrapper: HTMLElement, reRender: () => void): HTMLElement {
+  const svc = getAuthService();
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -87,10 +103,21 @@ function buildTable(roles: RoleRow[]): HTMLElement {
     const editLink = el('a', 'text-[var(--accent)] hover:underline text-sm', 'Edit') as HTMLAnchorElement;
     editLink.href = `#/auth/roles/${role.id}`;
     tdActions.appendChild(editLink);
+
     if (!role.isBuiltIn) {
       const deleteBtn = el('button', 'text-red-400 hover:underline text-sm ml-2', 'Delete');
       deleteBtn.type = 'button';
-      deleteBtn.addEventListener('click', () => { /* delete placeholder */ });
+      deleteBtn.addEventListener('click', async () => {
+        if (!confirm(`Delete role "${role.name}"? This cannot be undone.`)) return;
+        try {
+          await svc.deleteRole(role.id);
+          showMsg(wrapper, `Role "${role.name}" has been deleted.`, false);
+          reRender();
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Failed to delete role. It may have users assigned.';
+          showMsg(wrapper, message, true);
+        }
+      });
       tdActions.appendChild(deleteBtn);
     }
     tr.appendChild(tdActions);
@@ -110,24 +137,77 @@ function buildTable(roles: RoleRow[]): HTMLElement {
 export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
+
+    const svc = getAuthService();
+    const self = this;
     const wrapper = el('div', 'space-y-0');
 
+    // Header
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Roles'));
     const btnGroup = el('div', 'flex items-center gap-2');
+
     const newBtn = el('a', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90') as HTMLAnchorElement;
     newBtn.href = '#/auth/roles/new';
     newBtn.textContent = 'New Role';
     btnGroup.appendChild(newBtn);
+
     const initBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]', 'Init Built-in Roles');
     initBtn.type = 'button';
-    initBtn.addEventListener('click', () => { /* init placeholder */ });
+    initBtn.addEventListener('click', async () => {
+      try {
+        const count = await svc.initBuiltInRoles();
+        if (count > 0) {
+          showMsg(wrapper, `${count} built-in role(s) created successfully.`, false);
+        } else {
+          showMsg(wrapper, 'All built-in roles already exist.', false);
+        }
+        // Re-render to show new roles
+        self.render(container);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to initialize built-in roles.';
+        showMsg(wrapper, message, true);
+      }
+    });
     btnGroup.appendChild(initBtn);
     headerRow.appendChild(btnGroup);
     wrapper.appendChild(headerRow);
 
-    const roles: RoleRow[] = [];
-    wrapper.appendChild(buildTable(roles));
+    // Load roles and compute user counts
+    const allRoles = svc.getRoles();
+    const allUsers = svc.getUsers();
+
+    // Count users per role
+    const userCountByRole = new Map<string, number>();
+    for (const u of allUsers) {
+      const rid = u.roleId ?? '';
+      userCountByRole.set(rid, (userCountByRole.get(rid) ?? 0) + 1);
+    }
+
+    // Build role rows
+    const roleRows: RoleRow[] = allRoles.map((r) => {
+      let permissionCount = 0;
+      try {
+        const perms = JSON.parse(r.permissions || '{"rules":[]}');
+        permissionCount = Array.isArray(perms.rules) ? perms.rules.length : 0;
+      } catch {
+        permissionCount = 0;
+      }
+
+      return {
+        id: r.id!,
+        name: r.name,
+        description: r.description ?? '',
+        isBuiltIn: r.isBuiltIn ?? false,
+        priority: r.priority ?? 0,
+        userCount: userCountByRole.get(r.id!) ?? 0,
+        permissionCount,
+      };
+    });
+
+    wrapper.appendChild(buildTable(roleRows, wrapper, () => {
+      self.render(container);
+    }));
 
     container.appendChild(wrapper);
   },
