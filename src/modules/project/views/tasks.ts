@@ -4,6 +4,8 @@
  * critical path indicator, and resource type.
  */
 
+import { getProjectService } from '../service-accessor';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -17,6 +19,25 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+function parseProjectId(): string {
+  const hash = window.location.hash;
+  const parts = hash.replace(/^#\/?/, '').split('/');
+  if (parts.length >= 2 && parts[0] === 'project') return parts[1];
+  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -104,7 +125,11 @@ function buildProgressBar(pct: number): HTMLElement {
 // Table
 // ---------------------------------------------------------------------------
 
-function buildTable(tasks: TaskRow[]): HTMLElement {
+function buildTable(
+  tasks: TaskRow[],
+  onEdit: (task: TaskRow) => void,
+  onComplete: (task: TaskRow) => void,
+): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -154,11 +179,19 @@ function buildTable(tasks: TaskRow[]): HTMLElement {
     tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)] capitalize', task.resourceType));
 
     const tdActions = el('td', 'py-2 px-3');
-    const editBtn = el('button', 'text-[var(--accent)] hover:underline text-sm', 'Edit');
+    const editBtn = el('button', 'text-[var(--accent)] hover:underline text-sm mr-2', 'Edit');
     editBtn.type = 'button';
+    editBtn.addEventListener('click', () => onEdit(task));
     tdActions.appendChild(editBtn);
-    tr.appendChild(tdActions);
 
+    if (task.status !== 'completed') {
+      const completeBtn = el('button', 'text-emerald-400 hover:underline text-sm', 'Complete');
+      completeBtn.type = 'button';
+      completeBtn.addEventListener('click', () => onComplete(task));
+      tdActions.appendChild(completeBtn);
+    }
+
+    tr.appendChild(tdActions);
     tbody.appendChild(tr);
   }
 
@@ -176,19 +209,171 @@ export default {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
+    const projectId = parseProjectId();
+
     const headerRow = el('div', 'flex items-center justify-between mb-4');
-    headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Tasks'));
+    const titleRow = el('div', 'flex items-center gap-4');
+    titleRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Tasks'));
+    const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', 'Back to Project') as HTMLAnchorElement;
+    backLink.href = `#/project/${projectId}`;
+    titleRow.appendChild(backLink);
+    headerRow.appendChild(titleRow);
+
     const addBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Add Task');
     addBtn.type = 'button';
-    addBtn.addEventListener('click', () => { /* add task placeholder */ });
     headerRow.appendChild(addBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildFilterBar((_status, _search) => { /* filter placeholder */ }));
+    // Service and state
+    const svc = getProjectService();
+    let allTasks: TaskRow[] = [];
+    let tableContainer: HTMLElement | null = null;
+    let currentStatus = '';
+    let currentSearch = '';
 
-    const tasks: TaskRow[] = [];
-    wrapper.appendChild(buildTable(tasks));
+    /** Replace the table element */
+    function replaceTable(tasks: TaskRow[]): void {
+      const newTable = buildTable(tasks, handleEdit, handleComplete);
+      if (tableContainer) {
+        wrapper.replaceChild(newTable, tableContainer);
+      } else {
+        wrapper.appendChild(newTable);
+      }
+      tableContainer = newTable;
+    }
+
+    /** Client-side filter on name/assignee + status */
+    function applyFilters(tasks: TaskRow[], status: string, search: string): TaskRow[] {
+      let filtered = tasks;
+      if (status) {
+        filtered = filtered.filter((t) => t.status === status);
+      }
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        filtered = filtered.filter(
+          (t) => t.name.toLowerCase().includes(q) || t.assignee.toLowerCase().includes(q),
+        );
+      }
+      return filtered;
+    }
+
+    /** Load tasks from the service */
+    async function loadTasks(): Promise<void> {
+      try {
+        const tasks = await svc.getTasks(projectId);
+        allTasks = tasks.map((t: any) => ({
+          id: t.id,
+          name: t.name || '',
+          assignee: t.assignee || '',
+          status: t.status || 'not_started',
+          startDate: t.startDate || '',
+          endDate: t.endDate || '',
+          duration: t.duration ?? 0,
+          percentComplete: t.percentComplete ?? 0,
+          isCriticalPath: t.isCriticalPath ?? false,
+          resourceType: t.resourceType || '',
+        }));
+        const filtered = applyFilters(allTasks, currentStatus, currentSearch);
+        replaceTable(filtered);
+      } catch (err: any) {
+        showMsg(wrapper, `Failed to load tasks: ${err.message ?? err}`, true);
+      }
+    }
+
+    /** Handle add task */
+    async function handleAdd(): Promise<void> {
+      const name = window.prompt('Task name:');
+      if (!name?.trim()) return;
+
+      const startDate = window.prompt('Start date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+      if (!startDate) return;
+
+      const endDate = window.prompt('End date (YYYY-MM-DD):');
+      if (!endDate) return;
+
+      const assignee = window.prompt('Assignee (optional):') || '';
+
+      try {
+        await svc.createTask({
+          projectId,
+          name: name.trim(),
+          startDate,
+          endDate,
+          assignee: assignee.trim() || undefined,
+        } as any);
+        showMsg(wrapper, 'Task created successfully.', false);
+        await loadTasks();
+      } catch (err: any) {
+        showMsg(wrapper, `Failed to create task: ${err.message ?? err}`, true);
+      }
+    }
+
+    /** Handle edit task */
+    async function handleEdit(task: TaskRow): Promise<void> {
+      const name = window.prompt('Task name:', task.name);
+      if (name === null) return;
+
+      const assignee = window.prompt('Assignee:', task.assignee);
+      if (assignee === null) return;
+
+      const startDate = window.prompt('Start date (YYYY-MM-DD):', task.startDate);
+      if (startDate === null) return;
+
+      const endDate = window.prompt('End date (YYYY-MM-DD):', task.endDate);
+      if (endDate === null) return;
+
+      const pctStr = window.prompt('% Complete:', String(task.percentComplete));
+      if (pctStr === null) return;
+
+      try {
+        const changes: Record<string, any> = {};
+        if (name.trim()) changes.name = name.trim();
+        if (assignee.trim() !== task.assignee) changes.assignee = assignee.trim();
+        if (startDate !== task.startDate) changes.startDate = startDate;
+        if (endDate !== task.endDate) changes.endDate = endDate;
+        const pct = parseFloat(pctStr);
+        if (!isNaN(pct) && pct !== task.percentComplete) changes.percentComplete = pct;
+
+        if (Object.keys(changes).length > 0) {
+          await svc.updateTask(task.id, changes);
+          showMsg(wrapper, 'Task updated successfully.', false);
+          await loadTasks();
+        }
+      } catch (err: any) {
+        showMsg(wrapper, `Failed to update task: ${err.message ?? err}`, true);
+      }
+    }
+
+    /** Handle complete task */
+    async function handleComplete(task: TaskRow): Promise<void> {
+      try {
+        await svc.completeTask(task.id);
+        showMsg(wrapper, `Task "${task.name}" marked as completed.`, false);
+        await loadTasks();
+      } catch (err: any) {
+        showMsg(wrapper, `Failed to complete task: ${err.message ?? err}`, true);
+      }
+    }
+
+    // Wire Add Task button
+    addBtn.addEventListener('click', () => { handleAdd(); });
+
+    // Wire filter bar
+    const filterBar = buildFilterBar((status, search) => {
+      currentStatus = status;
+      currentSearch = search;
+      const filtered = applyFilters(allTasks, status, search);
+      replaceTable(filtered);
+    });
+    wrapper.appendChild(filterBar);
+
+    // Initial empty table placeholder
+    tableContainer = buildTable([], handleEdit, handleComplete);
+    wrapper.appendChild(tableContainer);
 
     container.appendChild(wrapper);
+
+    // Kick off initial load
+    loadTasks();
   },
 };

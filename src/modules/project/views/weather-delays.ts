@@ -1,7 +1,10 @@
 /**
  * Weather Delays view.
  * Weather delay log with date, type, hours lost, description, and impact analysis.
+ * Wired to ProjectService for data operations.
  */
+
+import { getProjectService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,6 +19,25 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+function parseProjectId(): string {
+  const hash = window.location.hash;
+  const parts = hash.replace(/^#\/?/, '').split('/');
+  if (parts.length >= 2 && parts[0] === 'project') return parts[1];
+  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -59,7 +81,7 @@ interface WeatherDelayRow {
   type: string;
   hoursLost: number;
   description: string;
-  impactedTaskCount: number;
+  impactedTasks: string[];
 }
 
 interface DelayImpactSummary {
@@ -86,7 +108,7 @@ function buildSummaryCards(impact: DelayImpactSummary): HTMLElement {
   grid.appendChild(buildCard('Total Hours Lost', impact.totalHoursLost.toFixed(1), 'text-red-400'));
   grid.appendChild(buildCard('Total Days Lost', impact.totalDaysLost.toFixed(1), 'text-amber-400'));
   grid.appendChild(buildCard('Impacted Tasks', String(impact.impactedTaskCount), 'text-blue-400'));
-  grid.appendChild(buildCard('Delay Events', String(Object.values(impact.delaysByType).length), 'text-[var(--text)]'));
+  grid.appendChild(buildCard('Delay Types', String(Object.keys(impact.delaysByType).length), 'text-[var(--text)]'));
 
   return grid;
 }
@@ -95,7 +117,11 @@ function buildSummaryCards(impact: DelayImpactSummary): HTMLElement {
 // Form
 // ---------------------------------------------------------------------------
 
-function buildForm(): HTMLElement {
+function buildForm(
+  projectId: string,
+  wrapper: HTMLElement,
+  onSaved: () => void,
+): HTMLElement {
   const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6 mb-4');
   card.appendChild(el('h2', 'text-lg font-semibold text-[var(--text)] mb-4', 'Log Weather Delay'));
 
@@ -158,7 +184,51 @@ function buildForm(): HTMLElement {
   const btnRow = el('div', 'flex items-center gap-3');
   const saveBtn = el('button', 'px-6 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Log Delay');
   saveBtn.type = 'button';
-  saveBtn.addEventListener('click', () => { /* save placeholder */ });
+  saveBtn.addEventListener('click', async () => {
+    const date = dateInput.value.trim();
+    const type = typeSelect.value;
+    const hoursLost = parseFloat(hoursInput.value);
+
+    if (!date) {
+      showMsg(wrapper, 'Date is required.', true);
+      return;
+    }
+
+    if (isNaN(hoursLost) || hoursLost <= 0) {
+      showMsg(wrapper, 'Hours lost must be greater than 0.', true);
+      return;
+    }
+
+    const impactedTasks = tasksInput.value
+      .split(',')
+      .map(t => t.trim())
+      .filter(t => t.length > 0);
+
+    try {
+      const svc = getProjectService();
+      await svc.logWeatherDelay({
+        projectId,
+        date,
+        type: type as any,
+        hoursLost,
+        description: descInput.value.trim() || undefined,
+        impactedTasks: impactedTasks.length > 0 ? impactedTasks : undefined,
+      });
+
+      // Clear form
+      dateInput.valueAsDate = new Date();
+      typeSelect.selectedIndex = 0;
+      hoursInput.value = '';
+      descInput.value = '';
+      tasksInput.value = '';
+
+      showMsg(wrapper, 'Weather delay logged successfully.', false);
+      onSaved();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to log weather delay';
+      showMsg(wrapper, message, true);
+    }
+  });
   btnRow.appendChild(saveBtn);
   form.appendChild(btnRow);
 
@@ -203,8 +273,8 @@ function buildTable(delays: WeatherDelayRow[]): HTMLElement {
     tr.appendChild(tdType);
 
     tr.appendChild(el('td', 'py-2 px-3 font-mono text-[var(--text)]', `${delay.hoursLost}h`));
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)] max-w-xs truncate', delay.description));
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', `${delay.impactedTaskCount} task(s)`));
+    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)] max-w-xs truncate', delay.description || '--'));
+    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', `${delay.impactedTasks.length} task(s)`));
 
     tbody.appendChild(tr);
   }
@@ -221,27 +291,81 @@ function buildTable(delays: WeatherDelayRow[]): HTMLElement {
 export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
+    const projectId = parseProjectId();
+
     const wrapper = el('div', 'space-y-4');
 
     const headerRow = el('div', 'flex items-center justify-between mb-4');
-    headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Weather Delays'));
-    const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', 'Back to Project') as HTMLAnchorElement;
-    backLink.href = '#/project/list';
-    headerRow.appendChild(backLink);
+    const titleArea = el('div', 'flex items-center gap-3');
+    const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', '\u2190 Back') as HTMLAnchorElement;
+    backLink.href = `#/project/${projectId}`;
+    titleArea.appendChild(backLink);
+    titleArea.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Weather Delays'));
+    headerRow.appendChild(titleArea);
     wrapper.appendChild(headerRow);
 
-    const defaultImpact: DelayImpactSummary = {
+    // Dynamic slots
+    const summarySlot = el('div');
+    wrapper.appendChild(summarySlot);
+
+    wrapper.appendChild(buildForm(projectId, wrapper, () => loadData()));
+
+    const tableSlot = el('div');
+    wrapper.appendChild(tableSlot);
+
+    container.appendChild(wrapper);
+
+    // State
+    let allDelays: WeatherDelayRow[] = [];
+    let currentImpact: DelayImpactSummary = {
       totalHoursLost: 0,
       totalDaysLost: 0,
       delaysByType: {},
       impactedTaskCount: 0,
     };
-    wrapper.appendChild(buildSummaryCards(defaultImpact));
-    wrapper.appendChild(buildForm());
 
-    const delays: WeatherDelayRow[] = [];
-    wrapper.appendChild(buildTable(delays));
+    const renderContent = () => {
+      summarySlot.innerHTML = '';
+      summarySlot.appendChild(buildSummaryCards(currentImpact));
 
-    container.appendChild(wrapper);
+      tableSlot.innerHTML = '';
+      tableSlot.appendChild(buildTable(allDelays));
+    };
+
+    // Load data
+    const loadData = async () => {
+      try {
+        const svc = getProjectService();
+        const [delays, impact] = await Promise.all([
+          svc.getWeatherDelays(projectId),
+          svc.calculateDelayImpact(projectId),
+        ]);
+
+        allDelays = delays.map((d: any) => ({
+          id: d.id ?? '',
+          date: d.date ?? '',
+          type: d.type ?? 'other',
+          hoursLost: d.hoursLost ?? 0,
+          description: d.description ?? '',
+          impactedTasks: Array.isArray(d.impactedTasks) ? d.impactedTasks : [],
+        }));
+
+        currentImpact = {
+          totalHoursLost: impact.totalHoursLost ?? 0,
+          totalDaysLost: impact.totalDaysLost ?? 0,
+          delaysByType: impact.delaysByType ?? {},
+          impactedTaskCount: impact.impactedTaskCount ?? 0,
+        };
+
+        renderContent();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load weather delays';
+        showMsg(wrapper, message, true);
+        renderContent();
+      }
+    };
+
+    // Initial load
+    loadData();
   },
 };

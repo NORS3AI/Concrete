@@ -3,6 +3,8 @@
  * Filterable table of projects with status, % complete bar, dates, and manager.
  */
 
+import { getProjectService } from '../service-accessor';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -16,6 +18,25 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+function parseProjectId(): string {
+  const hash = window.location.hash;
+  const parts = hash.replace(/^#\/?/, '').split('/');
+  if (parts.length >= 2 && parts[0] === 'project') return parts[1];
+  return '';
 }
 
 const fmtCurrency = (v: number): string =>
@@ -201,11 +222,86 @@ export default {
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildFilterBar((_status, _search) => { /* filter placeholder */ }));
+    // Holds the current full list from the service (filtered by status)
+    let allProjects: ProjectRow[] = [];
+    // Reference to the table container so we can swap it on filter/search
+    let tableContainer: HTMLElement | null = null;
 
-    const projects: ProjectRow[] = [];
-    wrapper.appendChild(buildTable(projects));
+    const svc = getProjectService();
+
+    /** Replace the table element inside the wrapper */
+    function replaceTable(projects: ProjectRow[]): void {
+      const newTable = buildTable(projects);
+      if (tableContainer) {
+        wrapper.replaceChild(newTable, tableContainer);
+      } else {
+        wrapper.appendChild(newTable);
+      }
+      tableContainer = newTable;
+    }
+
+    /** Load projects from the service, applying optional status filter */
+    async function loadProjects(statusFilter: string, searchTerm: string): Promise<void> {
+      try {
+        const filters: Record<string, string> = {};
+        if (statusFilter) filters.status = statusFilter;
+
+        const projects = await svc.getProjects(Object.keys(filters).length ? filters : undefined);
+
+        allProjects = projects.map((p: any) => ({
+          id: p.id,
+          name: p.name || '',
+          status: p.status || 'planning',
+          manager: p.manager || '',
+          startDate: p.startDate || '',
+          endDate: p.endDate || '',
+          percentComplete: p.percentComplete ?? 0,
+          budgetedCost: p.budgetedCost ?? 0,
+        }));
+
+        // Apply client-side search
+        const filtered = applySearch(allProjects, searchTerm);
+        replaceTable(filtered);
+      } catch (err: any) {
+        showMsg(wrapper, `Failed to load projects: ${err.message ?? err}`, true);
+      }
+    }
+
+    /** Client-side search on name and manager */
+    function applySearch(projects: ProjectRow[], search: string): ProjectRow[] {
+      if (!search.trim()) return projects;
+      const q = search.toLowerCase();
+      return projects.filter(
+        (p) => p.name.toLowerCase().includes(q) || p.manager.toLowerCase().includes(q),
+      );
+    }
+
+    // Track current filter values so the filter bar can coordinate
+    let currentStatus = '';
+    let currentSearch = '';
+
+    const filterBar = buildFilterBar((status, search) => {
+      // If status changed, reload from service. If only search changed, filter client-side.
+      if (status !== currentStatus) {
+        currentStatus = status;
+        currentSearch = search;
+        loadProjects(status, search);
+      } else {
+        currentSearch = search;
+        const filtered = applySearch(allProjects, search);
+        replaceTable(filtered);
+      }
+    });
+
+    wrapper.appendChild(filterBar);
+
+    // Initial empty table placeholder (will be replaced by loadProjects)
+    tableContainer = buildTable([]);
+    wrapper.appendChild(tableContainer);
 
     container.appendChild(wrapper);
+
+    // Kick off initial load
+    loadProjects('', '');
   },
 };

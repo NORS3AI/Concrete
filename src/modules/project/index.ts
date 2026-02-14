@@ -1,5 +1,6 @@
 export { projectManifest } from './manifest';
 export { ProjectService } from './project-service';
+export { getProjectService } from './service-accessor';
 export type {
   ProjectStatus, PercentCompleteMethod, Project,
   MilestoneStatus, Milestone,

@@ -989,22 +989,22 @@ plugin/customField    plugin/script
 
 > Beyond job costing: active project tracking
 
-- [ ] Project phases and milestones
-- [ ] Gantt chart visualization
-- [ ] Critical path method (CPM) scheduling
-- [ ] Task creation, assignment, dependencies
-- [ ] Percent complete tracking (by cost, units, or manual)
-- [ ] Look-ahead scheduling (2-week, 4-week, 6-week)
-- [ ] Delay tracking and impact analysis
-- [ ] Resource loading (labor, equipment) by task
-- [ ] Earned value management (EVM): CPI, SPI, EAC, ETC, VAC
-- [ ] Baseline vs. actual schedule comparison
-- [ ] Weather delay logging
-- [ ] Daily log / daily report
-- [ ] Photo documentation per task
-- [ ] RFI creation, tracking, response
-- [ ] Submittal log and tracking
-- [ ] Meeting minutes template and tracking
+- [x] Project phases and milestones
+- [x] Gantt chart visualization
+- [x] Critical path method (CPM) scheduling
+- [x] Task creation, assignment, dependencies
+- [x] Percent complete tracking (by cost, units, or manual)
+- [x] Look-ahead scheduling (2-week, 4-week, 6-week)
+- [x] Delay tracking and impact analysis
+- [x] Resource loading (labor, equipment) by task
+- [x] Earned value management (EVM): CPI, SPI, EAC, ETC, VAC
+- [x] Baseline vs. actual schedule comparison
+- [x] Weather delay logging
+- [x] Daily log / daily report
+- [x] Photo documentation per task
+- [x] RFI creation, tracking, response
+- [x] Submittal log and tracking
+- [x] Meeting minutes template and tracking
 
 ---
 

@@ -2,7 +2,10 @@
  * Look-Ahead Schedule view.
  * Displays tasks within 2-week, 4-week, or 6-week look-ahead windows
  * with task timeline bars and status indicators.
+ * Wired to ProjectService for data operations.
  */
+
+import { getProjectService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -17,6 +20,25 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+function parseProjectId(): string {
+  const hash = window.location.hash;
+  const parts = hash.replace(/^#\/?/, '').split('/');
+  if (parts.length >= 2 && parts[0] === 'project') return parts[1];
+  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -176,23 +198,70 @@ function buildTimeline(tasks: LookAheadTask[], weeks: number): HTMLElement {
 export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
+    const projectId = parseProjectId();
+
     const wrapper = el('div', 'space-y-4');
 
     const headerRow = el('div', 'flex items-center justify-between mb-4');
-    headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Look-Ahead Schedule'));
+    const titleArea = el('div', 'flex items-center gap-3');
+    const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', '\u2190 Back') as HTMLAnchorElement;
+    backLink.href = `#/project/${projectId}`;
+    titleArea.appendChild(backLink);
+    titleArea.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Look-Ahead Schedule'));
+    headerRow.appendChild(titleArea);
 
-    const controls = el('div', 'flex items-center gap-3');
-    controls.appendChild(buildWeekToggle('2', (_weeks) => { /* toggle placeholder */ }));
-
-    const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', 'Back to Project') as HTMLAnchorElement;
-    backLink.href = '#/project/list';
-    controls.appendChild(backLink);
-    headerRow.appendChild(controls);
+    const controlsSlot = el('div', 'flex items-center gap-3');
+    headerRow.appendChild(controlsSlot);
     wrapper.appendChild(headerRow);
 
-    const tasks: LookAheadTask[] = [];
-    wrapper.appendChild(buildTimeline(tasks, 2));
+    // Timeline slot
+    const timelineSlot = el('div');
+    wrapper.appendChild(timelineSlot);
 
     container.appendChild(wrapper);
+
+    // State
+    let currentWeeks = 2;
+
+    const renderControls = () => {
+      controlsSlot.innerHTML = '';
+      controlsSlot.appendChild(buildWeekToggle(String(currentWeeks), (weeks) => {
+        currentWeeks = parseInt(weeks, 10);
+        renderControls();
+        loadData();
+      }));
+    };
+
+    const renderTimeline = (tasks: LookAheadTask[]) => {
+      timelineSlot.innerHTML = '';
+      timelineSlot.appendChild(buildTimeline(tasks, currentWeeks));
+    };
+
+    // Load data
+    const loadData = async () => {
+      try {
+        const svc = getProjectService();
+        const tasks = await svc.getLookAhead(projectId, currentWeeks);
+        const mapped: LookAheadTask[] = tasks.map((t: any) => ({
+          id: t.id ?? '',
+          name: t.name ?? '',
+          assignee: t.assignee ?? '',
+          startDate: t.startDate ?? '',
+          endDate: t.endDate ?? '',
+          percentComplete: t.percentComplete ?? 0,
+          status: t.status ?? 'not_started',
+          isCriticalPath: t.isCriticalPath ?? false,
+        }));
+        renderTimeline(mapped);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load look-ahead schedule';
+        showMsg(wrapper, message, true);
+        renderTimeline([]);
+      }
+    };
+
+    // Initial render
+    renderControls();
+    loadData();
   },
 };
