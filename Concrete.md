@@ -1051,19 +1051,19 @@ plugin/customField    plugin/script
 
 > Track materials across warehouses, yards, and job sites
 
-- [ ] Item master: description, unit, category, preferred vendor, reorder point
-- [ ] Warehouse/location management
-- [ ] Inventory receipts and issues
-- [ ] Job-site material tracking
-- [ ] Inventory valuation (FIFO, LIFO, average cost)
-- [ ] Physical inventory count and adjustment
-- [ ] Material requisition workflow
-- [ ] Transfer between locations
-- [ ] Low stock alerts
-- [ ] Material cost integration with job cost
-- [ ] Waste tracking
-- [ ] Import inventory from CSV
-- [ ] Export inventory valuation to CSV
+- [x] Item master: description, unit, category, preferred vendor, reorder point
+- [x] Warehouse/location management
+- [x] Inventory receipts and issues
+- [x] Job-site material tracking
+- [x] Inventory valuation (FIFO, LIFO, average cost)
+- [x] Physical inventory count and adjustment
+- [x] Material requisition workflow
+- [x] Transfer between locations
+- [x] Low stock alerts
+- [x] Material cost integration with job cost
+- [x] Waste tracking
+- [x] Import inventory from CSV
+- [x] Export inventory valuation to CSV
 
 ---
 
