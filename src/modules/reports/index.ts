@@ -1,5 +1,6 @@
 export { reportsManifest } from './manifest';
 export { ReportsService } from './reports-service';
+export { getReportsService } from './service-accessor';
 export type {
   ReportType, ReportFormat, ComparativePeriod,
   BalanceSheetStyle, IncomeStatementStyle,

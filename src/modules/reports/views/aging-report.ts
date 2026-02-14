@@ -4,12 +4,12 @@
  * aging buckets. Supports toggle between AP and AR aging.
  */
 
+import { getReportsService } from '../service-accessor';
+import type { AgingReportRow } from '../reports-service';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const fmtCurrency = (v: number): string =>
-  v.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -22,68 +22,39 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const TYPE_OPTIONS = [
-  { value: 'ap', label: 'Accounts Payable (AP)' },
-  { value: 'ar', label: 'Accounts Receivable (AR)' },
-];
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface AgingDisplayRow {
-  entityName: string;
-  current: number;
-  days30: number;
-  days60: number;
-  days90: number;
-  days120Plus: number;
-  total: number;
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
-// ---------------------------------------------------------------------------
-// Filter Bar
-// ---------------------------------------------------------------------------
+const fmtCurrency = (v: number): string =>
+  v.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
-function buildFilterBar(
-  onApply: (type: string, asOfDate: string) => void,
-): HTMLElement {
-  const bar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
-  const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
+const fmtPct = (v: number): string => `${v.toFixed(1)}%`;
 
-  const typeSelect = el('select', inputCls) as HTMLSelectElement;
-  for (const opt of TYPE_OPTIONS) {
-    const o = el('option', '', opt.label) as HTMLOptionElement;
-    o.value = opt.value;
-    typeSelect.appendChild(o);
-  }
-  bar.appendChild(typeSelect);
-
-  const asOfLabel = el('label', 'text-sm text-[var(--text-muted)]', 'As of:');
-  bar.appendChild(asOfLabel);
-  const asOfInput = el('input', inputCls) as HTMLInputElement;
-  asOfInput.type = 'date';
-  asOfInput.value = new Date().toISOString().split('T')[0];
-  bar.appendChild(asOfInput);
-
-  const applyBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Generate');
-  applyBtn.addEventListener('click', () => {
-    onApply(typeSelect.value, asOfInput.value);
-  });
-  bar.appendChild(applyBtn);
-
-  return bar;
+function exportCSV(filename: string, headers: string[], rows: string[][]): void {
+  const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = el('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------------
 // Table
 // ---------------------------------------------------------------------------
 
-function buildTable(rows: AgingDisplayRow[], type: string): HTMLElement {
+function buildTable(rows: AgingReportRow[], type: 'ap' | 'ar'): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-x-auto');
   const table = el('table', 'w-full text-sm');
 
@@ -92,12 +63,12 @@ function buildTable(rows: AgingDisplayRow[], type: string): HTMLElement {
   const thead = el('thead');
   const headRow = el('tr', 'text-left text-[var(--text-muted)] border-b border-[var(--border)]');
   const columns = [
-    { name: entityLabel, numeric: false },
+    { name: `${entityLabel} Name`, numeric: false },
     { name: 'Current', numeric: true },
-    { name: '31-60', numeric: true },
-    { name: '61-90', numeric: true },
-    { name: '91-120', numeric: true },
-    { name: '120+', numeric: true },
+    { name: '31-60 Days', numeric: true },
+    { name: '61-90 Days', numeric: true },
+    { name: '91-120 Days', numeric: true },
+    { name: '120+ Days', numeric: true },
     { name: 'Total', numeric: true },
   ];
 
@@ -166,46 +137,193 @@ function buildTable(rows: AgingDisplayRow[], type: string): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
-// Export Bar
+// KPI Cards
 // ---------------------------------------------------------------------------
 
-function buildExportBar(): HTMLElement {
-  const bar = el('div', 'flex items-center gap-3 mt-4');
-  bar.appendChild(el('span', 'text-sm text-[var(--text-muted)]', 'Export:'));
+function buildKpiCards(rows: AgingReportRow[]): HTMLElement {
+  const container = el('div', 'grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4');
 
-  for (const format of ['PDF', 'CSV', 'Excel']) {
-    const btn = el('button', 'px-3 py-1.5 rounded-md text-xs font-medium border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface)]', format);
-    bar.appendChild(btn);
+  const grandTotal = rows.reduce((sum, r) => sum + r.total, 0);
+  const grandCurrent = rows.reduce((sum, r) => sum + r.current, 0);
+  const over90 = rows.reduce((sum, r) => sum + r.days90 + r.days120Plus, 0);
+
+  const currentPct = grandTotal > 0 ? (grandCurrent / grandTotal) * 100 : 0;
+  const over90Pct = grandTotal > 0 ? (over90 / grandTotal) * 100 : 0;
+
+  const cards = [
+    { label: 'Total Outstanding', value: fmtCurrency(grandTotal) },
+    { label: 'Current %', value: fmtPct(currentPct) },
+    { label: 'Over 90 Days %', value: fmtPct(over90Pct) },
+  ];
+
+  for (const card of cards) {
+    const cardEl = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4');
+    cardEl.appendChild(el('div', 'text-xs text-[var(--text-muted)] mb-1', card.label));
+    cardEl.appendChild(el('div', 'text-xl font-bold text-[var(--text)]', card.value));
+    container.appendChild(cardEl);
   }
 
-  return bar;
+  return container;
 }
 
 // ---------------------------------------------------------------------------
-// Render
+// Main wrapper
+// ---------------------------------------------------------------------------
+
+const wrapper = el('div', 'space-y-0');
+
+function buildView(): void {
+  wrapper.innerHTML = '';
+
+  // Header
+  const headerRow = el('div', 'flex items-center justify-between mb-4');
+  headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Aging Reports'));
+  const backLink = el('a', 'text-sm text-[var(--accent)] hover:underline', 'Back to Reports') as HTMLAnchorElement;
+  backLink.href = '#/reports';
+  headerRow.appendChild(backLink);
+  wrapper.appendChild(headerRow);
+
+  // Control bar
+  const bar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
+  const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
+  const activeBtnCls = 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white';
+  const inactiveBtnCls = 'px-4 py-2 rounded-md text-sm font-medium border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface)]';
+
+  let selectedType: 'ap' | 'ar' = 'ap';
+
+  const apBtn = el('button', activeBtnCls, 'AP');
+  const arBtn = el('button', inactiveBtnCls, 'AR');
+
+  apBtn.addEventListener('click', () => {
+    selectedType = 'ap';
+    apBtn.className = activeBtnCls;
+    arBtn.className = inactiveBtnCls;
+  });
+
+  arBtn.addEventListener('click', () => {
+    selectedType = 'ar';
+    arBtn.className = activeBtnCls;
+    apBtn.className = inactiveBtnCls;
+  });
+
+  bar.appendChild(apBtn);
+  bar.appendChild(arBtn);
+
+  const asOfLabel = el('label', 'text-sm text-[var(--text-muted)]', 'As of:');
+  bar.appendChild(asOfLabel);
+  const asOfInput = el('input', inputCls) as HTMLInputElement;
+  asOfInput.type = 'date';
+  asOfInput.value = new Date().toISOString().split('T')[0];
+  bar.appendChild(asOfInput);
+
+  const applyBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Generate');
+  bar.appendChild(applyBtn);
+  wrapper.appendChild(bar);
+
+  // KPI cards placeholder
+  const kpiContainer = el('div');
+  wrapper.appendChild(kpiContainer);
+
+  // Table placeholder
+  const tableContainer = el('div');
+  tableContainer.appendChild(buildTable([], 'ap'));
+  wrapper.appendChild(tableContainer);
+
+  // Export bar
+  const exportBar = el('div', 'flex items-center gap-3 mt-4');
+  const backLink2 = el('a', 'text-sm text-[var(--accent)] hover:underline', 'Back to Reports') as HTMLAnchorElement;
+  backLink2.href = '#/reports';
+  exportBar.appendChild(backLink2);
+
+  const csvBtn = el('button', 'px-3 py-1.5 rounded-md text-xs font-medium border border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface)]', 'Export CSV');
+  exportBar.appendChild(csvBtn);
+  wrapper.appendChild(exportBar);
+
+  // State for current data
+  let currentRows: AgingReportRow[] = [];
+  let currentType: 'ap' | 'ar' = 'ap';
+
+  // Generate handler
+  applyBtn.addEventListener('click', () => {
+    const asOfDate = asOfInput.value;
+    if (!asOfDate) {
+      showMsg(wrapper, 'Please select an As Of date.', true);
+      return;
+    }
+
+    currentType = selectedType;
+
+    void (async () => {
+      try {
+        const svc = getReportsService();
+        const rows = await svc.generateAgingReport(selectedType, asOfDate);
+        currentRows = rows;
+
+        // Rebuild KPI cards
+        kpiContainer.innerHTML = '';
+        kpiContainer.appendChild(buildKpiCards(rows));
+
+        // Rebuild table
+        tableContainer.innerHTML = '';
+        tableContainer.appendChild(buildTable(rows, selectedType));
+
+        const typeLabel = selectedType === 'ap' ? 'AP' : 'AR';
+        showMsg(wrapper, `${typeLabel} aging report generated: ${rows.length} ${selectedType === 'ap' ? 'vendor' : 'customer'}(s)`, false);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Operation failed';
+        showMsg(wrapper, message, true);
+      }
+    })();
+  });
+
+  // Export CSV handler
+  csvBtn.addEventListener('click', () => {
+    if (currentRows.length === 0) {
+      showMsg(wrapper, 'No data to export. Generate the report first.', true);
+      return;
+    }
+    const entityLabel = currentType === 'ap' ? 'Vendor' : 'Customer';
+    const headers = [
+      `${entityLabel} Name`, 'Current', '31-60 Days', '61-90 Days',
+      '91-120 Days', '120+ Days', 'Total',
+    ];
+    const csvRows = currentRows.map(r => [
+      r.entityName,
+      r.current.toString(),
+      r.days30.toString(),
+      r.days60.toString(),
+      r.days90.toString(),
+      r.days120Plus.toString(),
+      r.total.toString(),
+    ]);
+    const filename = currentType === 'ap' ? 'aging-ap.csv' : 'aging-ar.csv';
+    exportCSV(filename, headers, csvRows);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+
+void (async () => {
+  try {
+    const svc = getReportsService();
+    void svc; // validate service is available
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Operation failed';
+    showMsg(wrapper, message, true);
+  }
+})();
+
+buildView();
+
+// ---------------------------------------------------------------------------
+// Export
 // ---------------------------------------------------------------------------
 
 export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
-    const wrapper = el('div', 'space-y-0');
-
-    const headerRow = el('div', 'flex items-center justify-between mb-4');
-    headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Aging Reports'));
-
-    const backLink = el('a', 'text-sm text-[var(--accent)] hover:underline', 'Back to Reports') as HTMLAnchorElement;
-    backLink.href = '#/reports';
-    headerRow.appendChild(backLink);
-    wrapper.appendChild(headerRow);
-
-    wrapper.appendChild(buildFilterBar((_type, _asOfDate) => {
-      /* filter action placeholder */
-    }));
-
-    const rows: AgingDisplayRow[] = [];
-    wrapper.appendChild(buildTable(rows, 'ap'));
-    wrapper.appendChild(buildExportBar());
-
     container.appendChild(wrapper);
   },
 };

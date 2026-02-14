@@ -841,21 +841,21 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Financial Reports + WIP
 
-- [ ] Balance Sheet (standard, comparative, consolidated)
-- [ ] Income Statement (standard, by job, by entity, comparative)
-- [ ] Cash Flow Statement (direct and indirect method)
-- [ ] WIP Schedule (cost method, units method, efforts method)
-- [ ] Job cost detail and summary reports
-- [ ] Aged AP and AR reports
-- [ ] Payroll summary and detail reports
-- [ ] Equipment utilization and cost reports
-- [ ] Custom report builder (drag-and-drop columns, filters, grouping)
-- [ ] Report scheduling (Phase 16+)
-- [ ] Report templates library
-- [ ] Export all reports to PDF/CSV/Excel
-- [ ] Comparative period analysis (month, quarter, year, YTD)
-- [ ] Consolidated vs. entity-level toggle
-- [ ] Bonding capacity analysis report (for surety)
+- [x] Balance Sheet (standard, comparative, consolidated)
+- [x] Income Statement (standard, by job, by entity, comparative)
+- [x] Cash Flow Statement (direct and indirect method)
+- [x] WIP Schedule (cost method, units method, efforts method)
+- [x] Job cost detail and summary reports
+- [x] Aged AP and AR reports
+- [x] Payroll summary and detail reports
+- [x] Equipment utilization and cost reports
+- [x] Custom report builder (drag-and-drop columns, filters, grouping)
+- [x] Report scheduling (Phase 16+)
+- [x] Report templates library
+- [x] Export all reports to PDF/CSV/Excel
+- [x] Comparative period analysis (month, quarter, year, YTD)
+- [x] Consolidated vs. entity-level toggle
+- [x] Bonding capacity analysis report (for surety)
 
 ---
 
