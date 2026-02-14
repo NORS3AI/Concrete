@@ -1,0 +1,30 @@
+export const workflowManifest = {
+  id: 'concrete.workflow', name: 'Workflow & Approvals Engine', description: 'Configurable approval chains with sequential, parallel, and conditional routing, delegation, escalation, and bulk approvals.', version: '1.0.0', phase: 28, dependencies: [],
+  collections: ['wf/template','wf/step','wf/request','wf/action','wf/delegation','wf/escalation','wf/history','wf/bulkBatch'],
+  routes: [
+    { path: '/workflow/templates', component: () => import('./views/templates'), title: 'Templates', icon: 'git-branch' },
+    { path: '/workflow/steps', component: () => import('./views/steps'), title: 'Steps', icon: 'list' },
+    { path: '/workflow/requests', component: () => import('./views/requests'), title: 'Requests', icon: 'inbox' },
+    { path: '/workflow/pending', component: () => import('./views/pending'), title: 'Pending', icon: 'clock' },
+    { path: '/workflow/delegations', component: () => import('./views/delegations'), title: 'Delegations', icon: 'user-check' },
+    { path: '/workflow/escalations', component: () => import('./views/escalations'), title: 'Escalations', icon: 'alert-triangle' },
+    { path: '/workflow/history', component: () => import('./views/history'), title: 'History', icon: 'archive' },
+    { path: '/workflow/bulk', component: () => import('./views/bulk'), title: 'Bulk Approval', icon: 'check-square' },
+  ],
+  navItems: [
+    { id: 'workflow', label: 'Workflow', icon: 'git-branch', path: '/workflow/pending', order: 280 },
+    { id: 'wf-templates', label: 'Templates', icon: 'git-branch', path: '/workflow/templates', order: 1, parent: 'workflow' },
+    { id: 'wf-requests', label: 'Requests', icon: 'inbox', path: '/workflow/requests', order: 2, parent: 'workflow' },
+    { id: 'wf-pending', label: 'Pending', icon: 'clock', path: '/workflow/pending', order: 3, parent: 'workflow' },
+    { id: 'wf-delegations', label: 'Delegations', icon: 'user-check', path: '/workflow/delegations', order: 4, parent: 'workflow' },
+    { id: 'wf-escalations', label: 'Escalations', icon: 'alert-triangle', path: '/workflow/escalations', order: 5, parent: 'workflow' },
+    { id: 'wf-history', label: 'History', icon: 'archive', path: '/workflow/history', order: 6, parent: 'workflow' },
+    { id: 'wf-bulk', label: 'Bulk Approval', icon: 'check-square', path: '/workflow/bulk', order: 7, parent: 'workflow' },
+  ],
+  dashboardWidgets: [], settings: [], permissions: [
+    { resource: 'wf.template', actions: ['create','read','update','activate','deactivate'], description: 'Workflow templates' },
+    { resource: 'wf.request', actions: ['create','read','approve','reject'], description: 'Approval requests' },
+    { resource: 'wf.delegation', actions: ['create','read','deactivate'], description: 'Delegation rules' },
+    { resource: 'wf.bulk', actions: ['approve'], description: 'Bulk approvals' },
+  ], workflows: [], importTypes: [], exportTypes: [], hooks: [],
+};
