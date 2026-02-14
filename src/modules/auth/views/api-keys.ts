@@ -1,21 +1,34 @@
 /**
  * API Keys view.
  * API key management: create, revoke, show key prefix and last used.
+ * Wired to AuthService for live data.
  */
+
+import { getAuthService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  cls?: string,
-  text?: string,
+  tag: K, cls?: string, text?: string,
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 function formatDate(iso: string): string {
@@ -40,13 +53,16 @@ interface ApiKeyRow {
   expiresAt: string;
   lastUsedAt: string;
   isRevoked: boolean;
+  isExpired: boolean;
 }
 
 // ---------------------------------------------------------------------------
-// Create Key Modal
+// Create Key Form
 // ---------------------------------------------------------------------------
 
-function buildCreateForm(): HTMLElement {
+function buildCreateForm(
+  onGenerate: (name: string, expiryDays: number) => void,
+): HTMLElement {
   const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6 mb-4');
   card.appendChild(el('h2', 'text-lg font-semibold text-[var(--text)] mb-4', 'Generate New API Key'));
 
@@ -73,7 +89,17 @@ function buildCreateForm(): HTMLElement {
   const btnGroup = el('div', 'flex items-end');
   const generateBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Generate Key');
   generateBtn.type = 'button';
-  generateBtn.addEventListener('click', () => { /* generate placeholder */ });
+  generateBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    if (!name) {
+      nameInput.focus();
+      return;
+    }
+    const days = parseInt(expiryInput.value, 10) || 365;
+    onGenerate(name, days);
+    nameInput.value = '';
+    expiryInput.value = '365';
+  });
   btnGroup.appendChild(generateBtn);
   formGrid.appendChild(btnGroup);
 
@@ -98,7 +124,10 @@ function buildCreateForm(): HTMLElement {
 // Table
 // ---------------------------------------------------------------------------
 
-function buildTable(keys: ApiKeyRow[]): HTMLElement {
+function buildTable(
+  keys: ApiKeyRow[],
+  onRevoke: (keyId: string) => void,
+): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -132,6 +161,8 @@ function buildTable(keys: ApiKeyRow[]): HTMLElement {
     const tdStatus = el('td', 'py-2 px-3');
     if (key.isRevoked) {
       tdStatus.appendChild(el('span', 'px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20', 'Revoked'));
+    } else if (key.isExpired) {
+      tdStatus.appendChild(el('span', 'px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20', 'Expired'));
     } else {
       tdStatus.appendChild(el('span', 'px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20', 'Active'));
     }
@@ -141,7 +172,7 @@ function buildTable(keys: ApiKeyRow[]): HTMLElement {
     if (!key.isRevoked) {
       const revokeBtn = el('button', 'text-red-400 hover:underline text-sm', 'Revoke');
       revokeBtn.type = 'button';
-      revokeBtn.addEventListener('click', () => { /* revoke placeholder */ });
+      revokeBtn.addEventListener('click', () => onRevoke(key.id));
       tdActions.appendChild(revokeBtn);
     }
     tr.appendChild(tdActions);
@@ -161,18 +192,105 @@ function buildTable(keys: ApiKeyRow[]): HTMLElement {
 export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
+
+    const svc = getAuthService();
+
     const wrapper = el('div', 'space-y-0');
 
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'API Keys'));
-    headerRow.appendChild(el('span', 'text-sm text-[var(--text-muted)]', 'Manage API keys for external integrations'));
+    const summaryLabel = el('span', 'text-sm text-[var(--text-muted)]', 'Manage API keys for external integrations');
+    headerRow.appendChild(summaryLabel);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildCreateForm());
+    // Create form
+    const createFormEl = buildCreateForm(async (name: string, expiryDays: number) => {
+      try {
+        // Resolve userId: use the first available user or admin
+        const users = await svc.getUsers();
+        if (users.length === 0) {
+          showMsg(wrapper, 'No users found. Create a user first.', true);
+          return;
+        }
+        const userId = users[0].id;
 
-    const keys: ApiKeyRow[] = [];
-    wrapper.appendChild(buildTable(keys));
+        const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
+        const result = await svc.createApiKey({
+          userId,
+          name,
+          expiryDays,
+        });
+
+        // Show the full key in the display area
+        const keyDisplay = createFormEl.querySelector('#api-key-display') as HTMLElement;
+        const keyValue = createFormEl.querySelector('#api-key-value') as HTMLElement;
+        if (keyDisplay && keyValue) {
+          keyValue.textContent = result.fullKey;
+          keyDisplay.classList.remove('hidden');
+        }
+
+        showMsg(wrapper, `API key "${name}" generated successfully.`, false);
+        renderContent();
+      } catch (err: unknown) {
+        showMsg(wrapper, err instanceof Error ? err.message : 'Failed to generate API key.', true);
+      }
+    });
+    wrapper.appendChild(createFormEl);
+
+    // Content area for table
+    const contentArea = el('div', '');
+    wrapper.appendChild(contentArea);
 
     container.appendChild(wrapper);
+
+    // Load and render data
+    async function renderContent(): Promise<void> {
+      try {
+        const [allKeys, users, activeKeyCount] = await Promise.all([
+          svc.getAllApiKeys(),
+          svc.getUsers(),
+          svc.getActiveApiKeyCount(),
+        ]);
+
+        // Update summary label
+        summaryLabel.textContent = `${activeKeyCount} active key(s)`;
+
+        // Build user map
+        const userMap = new Map<string, string>();
+        for (const u of users) {
+          userMap.set(u.id, u.username);
+        }
+
+        const now = new Date();
+        const rows: ApiKeyRow[] = allKeys.map((k) => ({
+          id: k.id,
+          name: k.name,
+          keyPrefix: k.keyPrefix,
+          username: userMap.get(k.userId) ?? k.userId,
+          createdAt: k.createdAt,
+          expiresAt: k.expiresAt,
+          lastUsedAt: k.lastUsedAt,
+          isRevoked: k.isRevoked,
+          isExpired: !k.isRevoked && !!k.expiresAt && new Date(k.expiresAt) < now,
+        }));
+
+        contentArea.innerHTML = '';
+        contentArea.appendChild(buildTable(rows, async (keyId: string) => {
+          if (!confirm('Are you sure you want to revoke this API key? This action cannot be undone.')) return;
+          try {
+            await svc.revokeApiKey(keyId);
+            showMsg(wrapper, 'API key revoked.', false);
+            renderContent();
+          } catch (err: unknown) {
+            showMsg(wrapper, err instanceof Error ? err.message : 'Failed to revoke API key.', true);
+          }
+        }));
+      } catch (err: unknown) {
+        contentArea.innerHTML = '';
+        showMsg(wrapper, err instanceof Error ? err.message : 'Failed to load API keys.', true);
+      }
+    }
+
+    renderContent();
   },
 };

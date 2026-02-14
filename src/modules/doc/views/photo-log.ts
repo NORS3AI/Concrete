@@ -4,6 +4,8 @@
  * job stamping, and GPS coordinates.
  */
 
+import { getDocService } from '../service-accessor';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -18,6 +20,25 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (text !== undefined) node.textContent = text;
   return node;
 }
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+let jobFilter = '';
+let takenByFilter = '';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,8 +77,10 @@ function buildPhotoGrid(photos: PhotoRow[]): HTMLElement {
   for (const photo of photos) {
     const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
 
-    // Photo placeholder
-    const imgPlaceholder = el('div', 'bg-[var(--surface)] h-48 flex items-center justify-center');
+    // Photo placeholder with camera icon
+    const imgPlaceholder = el('div', 'bg-[var(--surface)] h-48 flex flex-col items-center justify-center');
+    const cameraIcon = el('span', 'text-[var(--text-muted)] text-3xl mb-2', '\u{1F4F7}');
+    imgPlaceholder.appendChild(cameraIcon);
     imgPlaceholder.appendChild(el('span', 'text-[var(--text-muted)] text-sm', photo.fileName || 'No file'));
     card.appendChild(imgPlaceholder);
 
@@ -119,7 +142,7 @@ function buildPhotoGrid(photos: PhotoRow[]): HTMLElement {
 // Add Photo Form
 // ---------------------------------------------------------------------------
 
-function buildAddPhotoForm(): HTMLElement {
+function buildAddPhotoForm(container: HTMLElement, onCreated: () => void): HTMLElement {
   const form = el('form', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4 space-y-3');
   form.appendChild(el('h3', 'text-lg font-semibold text-[var(--text)]', 'Add Photo'));
 
@@ -143,6 +166,7 @@ function buildAddPhotoForm(): HTMLElement {
   dateInput.type = 'date';
   dateInput.name = 'dateTaken';
   dateInput.required = true;
+  dateInput.valueAsDate = new Date();
   dateGroup.appendChild(dateInput);
   row1.appendChild(dateGroup);
 
@@ -221,25 +245,62 @@ function buildAddPhotoForm(): HTMLElement {
   descGroup.appendChild(descArea);
   form.appendChild(descGroup);
 
-  const tagsGroup = el('div', 'space-y-1');
-  tagsGroup.appendChild(el('label', 'block text-sm font-medium text-[var(--text-muted)]', 'Tags (comma-separated)'));
-  const tagsInput = el('input', inputCls) as HTMLInputElement;
-  tagsInput.type = 'text';
-  tagsInput.name = 'tags';
-  tagsInput.placeholder = 'foundation, concrete, inspection';
-  tagsGroup.appendChild(tagsInput);
-  form.appendChild(tagsGroup);
-
   const submitBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Add Photo');
   submitBtn.type = 'submit';
   form.appendChild(submitBtn);
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    /* add photo placeholder */
+    try {
+      const svc = getDocService();
+      await svc.createPhotoEntry({
+        title: titleInput.value.trim(),
+        jobId: jobInput.value.trim() || undefined,
+        dateTaken: dateInput.value,
+        location: locInput.value.trim() || undefined,
+        description: descArea.value.trim() || undefined,
+        latitude: latInput.value ? parseFloat(latInput.value) : undefined,
+        longitude: lonInput.value ? parseFloat(lonInput.value) : undefined,
+        takenBy: byInput.value.trim() || undefined,
+        fileName: fileInput.value.trim() || undefined,
+      });
+      showMsg(container, 'Photo added successfully.', false);
+      form.reset();
+      onCreated();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to add photo.';
+      showMsg(container, message, true);
+    }
   });
 
   return form;
+}
+
+// ---------------------------------------------------------------------------
+// Export CSV
+// ---------------------------------------------------------------------------
+
+function exportCsv(photos: PhotoRow[]): void {
+  const headers = ['Title', 'Date Taken', 'Job ID', 'Location', 'Taken By', 'Description', 'Latitude', 'Longitude', 'File Name'];
+  const rows = photos.map((p) => [
+    p.title,
+    p.dateTaken,
+    p.jobId,
+    p.location,
+    p.takenBy,
+    p.description,
+    p.latitude !== null ? String(p.latitude) : '',
+    p.longitude !== null ? String(p.longitude) : '',
+    p.fileName,
+  ]);
+  const csv = [headers, ...rows].map((r) => r.map((c) => `"${(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'photo-log.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------------
@@ -253,33 +314,103 @@ export default {
 
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Photo Log'));
+
+    const exportBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] hover:opacity-90', 'Export CSV');
+    headerRow.appendChild(exportBtn);
     wrapper.appendChild(headerRow);
 
     // Filter bar
     const bar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
     const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-3 py-2 text-sm text-[var(--text)]';
 
-    const jobFilter = el('input', inputCls) as HTMLInputElement;
-    jobFilter.type = 'text';
-    jobFilter.placeholder = 'Filter by job...';
-    bar.appendChild(jobFilter);
+    const jobFilterInput = el('input', inputCls) as HTMLInputElement;
+    jobFilterInput.type = 'text';
+    jobFilterInput.placeholder = 'Filter by job...';
+    jobFilterInput.value = jobFilter;
+    bar.appendChild(jobFilterInput);
 
-    const dateFrom = el('input', inputCls) as HTMLInputElement;
-    dateFrom.type = 'date';
-    dateFrom.placeholder = 'From date';
-    bar.appendChild(dateFrom);
-
-    const dateTo = el('input', inputCls) as HTMLInputElement;
-    dateTo.type = 'date';
-    dateTo.placeholder = 'To date';
-    bar.appendChild(dateTo);
+    const takenByInput = el('input', inputCls) as HTMLInputElement;
+    takenByInput.type = 'text';
+    takenByInput.placeholder = 'Filter by photographer...';
+    takenByInput.value = takenByFilter;
+    bar.appendChild(takenByInput);
 
     wrapper.appendChild(bar);
 
-    const photos: PhotoRow[] = [];
-    wrapper.appendChild(buildPhotoGrid(photos));
-    wrapper.appendChild(buildAddPhotoForm());
+    // Grid placeholder
+    const gridArea = el('div');
+    wrapper.appendChild(gridArea);
+
+    // Form
+    const formArea = el('div');
+    wrapper.appendChild(formArea);
 
     container.appendChild(wrapper);
+
+    // -- Data loading and rendering --
+    let currentData: PhotoRow[] = [];
+
+    const loadData = async () => {
+      try {
+        const svc = getDocService();
+        const filters: { jobId?: string; takenBy?: string } = {};
+        if (jobFilter) filters.jobId = jobFilter;
+        if (takenByFilter) filters.takenBy = takenByFilter;
+
+        const photos = await svc.getPhotos(filters);
+
+        // For each photo, we also need the document title and fileName
+        const rows: PhotoRow[] = [];
+        for (const photo of photos) {
+          const doc = await svc.getDocument(photo.documentId);
+          rows.push({
+            id: photo.id,
+            documentId: photo.documentId,
+            title: doc?.title ?? 'Untitled',
+            fileName: doc?.fileName ?? '',
+            jobId: photo.jobId ?? '',
+            dateTaken: photo.dateTaken,
+            location: photo.location ?? '',
+            description: photo.description ?? '',
+            latitude: photo.latitude ?? null,
+            longitude: photo.longitude ?? null,
+            takenBy: photo.takenBy ?? '',
+          });
+        }
+
+        currentData = rows;
+        renderGrid();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to load photos.';
+        showMsg(container, message, true);
+      }
+    };
+
+    const renderGrid = () => {
+      gridArea.innerHTML = '';
+      gridArea.appendChild(buildPhotoGrid(currentData));
+    };
+
+    // Form
+    formArea.appendChild(buildAddPhotoForm(container, () => loadData()));
+
+    // Export CSV
+    exportBtn.addEventListener('click', () => {
+      exportCsv(currentData);
+    });
+
+    // Filter handlers
+    jobFilterInput.addEventListener('input', () => {
+      jobFilter = jobFilterInput.value.trim();
+      loadData();
+    });
+
+    takenByInput.addEventListener('input', () => {
+      takenByFilter = takenByInput.value.trim();
+      loadData();
+    });
+
+    // Initial load
+    loadData();
   },
 };

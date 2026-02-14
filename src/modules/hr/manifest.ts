@@ -1,0 +1,110 @@
+export const hrManifest = {
+  id: 'concrete.hr',
+  name: 'HR & Workforce Management',
+  description: 'Employee lifecycle, positions, certifications, benefits, PTO, applicant tracking, and compliance reporting.',
+  version: '1.0.0',
+  phase: 22,
+  dependencies: [],
+
+  collections: [
+    'hr/employee',
+    'hr/position',
+    'hr/certification',
+    'hr/trainingRecord',
+    'hr/benefitPlan',
+    'hr/benefitEnrollment',
+    'hr/leaveRequest',
+    'hr/leaveBalance',
+    'hr/applicant',
+    'hr/employeeDocument',
+  ],
+
+  routes: [
+    { path: '/hr/employees', component: () => import('./views/employee-list'), title: 'Employees', icon: 'users' },
+    { path: '/hr/employees/new', component: () => import('./views/employee-form'), title: 'New Employee', icon: 'user-plus' },
+    { path: '/hr/employees/:id', component: () => import('./views/employee-form'), title: 'Edit Employee', icon: 'edit' },
+    { path: '/hr/positions', component: () => import('./views/positions'), title: 'Positions & Org Chart', icon: 'sitemap' },
+    { path: '/hr/certifications', component: () => import('./views/certifications'), title: 'Certifications', icon: 'award' },
+    { path: '/hr/cert-alerts', component: () => import('./views/cert-alerts'), title: 'Certification Alerts', icon: 'alert-triangle' },
+    { path: '/hr/training', component: () => import('./views/training'), title: 'Training Records', icon: 'book-open' },
+    { path: '/hr/benefits', component: () => import('./views/benefits'), title: 'Benefits Administration', icon: 'heart' },
+    { path: '/hr/enrollment', component: () => import('./views/enrollment'), title: 'Open Enrollment', icon: 'clipboard-check' },
+    { path: '/hr/leave', component: () => import('./views/leave'), title: 'PTO / Leave', icon: 'calendar' },
+    { path: '/hr/applicants', component: () => import('./views/applicants'), title: 'Applicant Tracking', icon: 'user-check' },
+    { path: '/hr/compliance', component: () => import('./views/compliance'), title: 'Compliance & Reporting', icon: 'shield' },
+    { path: '/hr/documents', component: () => import('./views/documents'), title: 'Employee Documents', icon: 'folder' },
+  ],
+
+  navItems: [
+    { id: 'hr', label: 'HR', icon: 'users', path: '/hr/employees', order: 220 },
+    { id: 'hr-employees', label: 'Employees', icon: 'users', path: '/hr/employees', order: 1, parent: 'hr' },
+    { id: 'hr-positions', label: 'Positions', icon: 'sitemap', path: '/hr/positions', order: 2, parent: 'hr' },
+    { id: 'hr-certifications', label: 'Certifications', icon: 'award', path: '/hr/certifications', order: 3, parent: 'hr' },
+    { id: 'hr-cert-alerts', label: 'Cert Alerts', icon: 'alert-triangle', path: '/hr/cert-alerts', order: 4, parent: 'hr' },
+    { id: 'hr-training', label: 'Training', icon: 'book-open', path: '/hr/training', order: 5, parent: 'hr' },
+    { id: 'hr-benefits', label: 'Benefits', icon: 'heart', path: '/hr/benefits', order: 6, parent: 'hr' },
+    { id: 'hr-enrollment', label: 'Enrollment', icon: 'clipboard-check', path: '/hr/enrollment', order: 7, parent: 'hr' },
+    { id: 'hr-leave', label: 'PTO / Leave', icon: 'calendar', path: '/hr/leave', order: 8, parent: 'hr' },
+    { id: 'hr-applicants', label: 'Applicants', icon: 'user-check', path: '/hr/applicants', order: 9, parent: 'hr' },
+    { id: 'hr-compliance', label: 'Compliance', icon: 'shield', path: '/hr/compliance', order: 10, parent: 'hr' },
+    { id: 'hr-documents', label: 'Documents', icon: 'folder', path: '/hr/documents', order: 11, parent: 'hr' },
+  ],
+
+  dashboardWidgets: [],
+  settings: [],
+
+  permissions: [
+    { resource: 'hr.employee', actions: ['create', 'read', 'update', 'hire', 'onboard', 'activate', 'terminate', 'rehire', 'export'], description: 'Employee lifecycle management' },
+    { resource: 'hr.position', actions: ['create', 'read', 'update'], description: 'Position management' },
+    { resource: 'hr.certification', actions: ['create', 'read', 'update', 'revoke'], description: 'Certification tracking' },
+    { resource: 'hr.training', actions: ['create', 'read', 'complete', 'cancel'], description: 'Training record management' },
+    { resource: 'hr.benefit', actions: ['create', 'read', 'update'], description: 'Benefits administration' },
+    { resource: 'hr.enrollment', actions: ['create', 'read', 'waive', 'close'], description: 'Benefit enrollment' },
+    { resource: 'hr.leave', actions: ['create', 'read', 'approve', 'deny', 'cancel'], description: 'PTO and leave management' },
+    { resource: 'hr.applicant', actions: ['create', 'read', 'advance', 'reject'], description: 'Applicant tracking' },
+    { resource: 'hr.document', actions: ['create', 'read', 'delete'], description: 'Employee document storage' },
+    { resource: 'hr.compliance', actions: ['read', 'report', 'export'], description: 'Compliance reporting' },
+  ],
+
+  workflows: [],
+
+  importTypes: [
+    {
+      id: 'hr-employees',
+      label: 'Import Employees',
+      collection: 'hr/employee',
+      fields: [
+        { name: 'employeeId', type: 'string', required: true, label: 'Employee ID' },
+        { name: 'firstName', type: 'string', required: true, label: 'First Name' },
+        { name: 'lastName', type: 'string', required: true, label: 'Last Name' },
+        { name: 'email', type: 'string', required: false, label: 'Email' },
+        { name: 'phone', type: 'string', required: false, label: 'Phone' },
+        { name: 'type', type: 'string', required: true, label: 'Type' },
+        { name: 'hireDate', type: 'string', required: false, label: 'Hire Date' },
+        { name: 'departmentId', type: 'string', required: false, label: 'Department' },
+        { name: 'payRate', type: 'number', required: false, label: 'Pay Rate' },
+        { name: 'payType', type: 'string', required: false, label: 'Pay Type' },
+        { name: 'ssn', type: 'string', required: false, label: 'SSN' },
+      ],
+      autoDetectHeaders: true,
+      mergeKey: 'employeeId',
+    },
+  ],
+
+  exportTypes: [
+    {
+      id: 'hr-roster-export',
+      label: 'Export Employee Roster',
+      collection: 'hr/employee',
+      defaultFields: ['employeeId', 'firstName', 'lastName', 'email', 'phone', 'status', 'type', 'hireDate', 'departmentId', 'payRate', 'payType'],
+    },
+    {
+      id: 'hr-certifications-export',
+      label: 'Export Certifications',
+      collection: 'hr/certification',
+      defaultFields: ['employeeId', 'type', 'name', 'issuedDate', 'expirationDate', 'status'],
+    },
+  ],
+
+  hooks: [],
+};

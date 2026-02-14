@@ -1,7 +1,10 @@
 /**
  * Change Order List view.
  * Filterable table of change orders with number, type, status, amount, job.
+ * Wired to ChangeOrderService for live data.
  */
+
+import { getChangeOrderService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -19,6 +22,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +89,37 @@ interface CORow {
 }
 
 // ---------------------------------------------------------------------------
+// Summary Cards
+// ---------------------------------------------------------------------------
+
+function buildSummaryCards(rows: CORow[]): HTMLElement {
+  const row = el('div', 'grid grid-cols-4 gap-3 mb-4');
+
+  const totalCount = rows.length;
+  const approvedSum = rows
+    .filter((r) => r.status === 'approved' || r.status === 'executed')
+    .reduce((sum, r) => sum + r.approvedAmount, 0);
+  const pendingSum = rows
+    .filter((r) => r.status === 'pending_approval')
+    .reduce((sum, r) => sum + r.amount, 0);
+  const netImpact = rows.reduce((sum, r) => sum + r.amount, 0);
+
+  const buildCard = (label: string, value: string, colorCls?: string): HTMLElement => {
+    const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-3 text-center');
+    card.appendChild(el('div', 'text-xs text-[var(--text-muted)] mb-1', label));
+    card.appendChild(el('div', `text-lg font-bold font-mono ${colorCls ?? 'text-[var(--text)]'}`, value));
+    return card;
+  };
+
+  row.appendChild(buildCard('Total COs', String(totalCount), 'text-[var(--text)]'));
+  row.appendChild(buildCard('Approved', fmtCurrency(approvedSum), 'text-emerald-400'));
+  row.appendChild(buildCard('Pending', fmtCurrency(pendingSum), 'text-amber-400'));
+  row.appendChild(buildCard('Net Impact', fmtCurrency(netImpact), 'text-[var(--accent)]'));
+
+  return row;
+}
+
+// ---------------------------------------------------------------------------
 // Filter Bar
 // ---------------------------------------------------------------------------
 
@@ -110,28 +156,6 @@ function buildFilterBar(
   searchInput.addEventListener('input', fire);
 
   return bar;
-}
-
-// ---------------------------------------------------------------------------
-// Summary Cards
-// ---------------------------------------------------------------------------
-
-function buildSummaryCards(): HTMLElement {
-  const row = el('div', 'grid grid-cols-4 gap-3 mb-4');
-
-  const buildCard = (label: string, value: string, colorCls?: string): HTMLElement => {
-    const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-3 text-center');
-    card.appendChild(el('div', 'text-xs text-[var(--text-muted)] mb-1', label));
-    card.appendChild(el('div', `text-lg font-bold font-mono ${colorCls ?? 'text-[var(--text)]'}`, value));
-    return card;
-  };
-
-  row.appendChild(buildCard('Total COs', '0', 'text-[var(--text)]'));
-  row.appendChild(buildCard('Approved', fmtCurrency(0), 'text-emerald-400'));
-  row.appendChild(buildCard('Pending', fmtCurrency(0), 'text-amber-400'));
-  row.appendChild(buildCard('Net Impact', fmtCurrency(0), 'text-[var(--accent)]'));
-
-  return row;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,11 +231,32 @@ function buildTable(rows: CORow[]): HTMLElement {
 // Render
 // ---------------------------------------------------------------------------
 
-export default {
-  render(container: HTMLElement): void {
-    container.innerHTML = '';
-    const wrapper = el('div', 'space-y-0');
+const wrapper = el('div', 'space-y-0');
 
+void (async () => {
+  try {
+    const svc = getChangeOrderService();
+
+    // Load all change orders (unfiltered) for initial render
+    const allCOs = svc.listChangeOrders();
+    let allRows: CORow[] = allCOs.map((co) => ({
+      id: co.id as string,
+      number: co.number,
+      title: co.title,
+      type: co.type,
+      status: co.status,
+      amount: co.amount ?? 0,
+      approvedAmount: co.approvedAmount ?? 0,
+      effectiveDate: co.effectiveDate ?? '',
+      scheduleExtensionDays: co.scheduleExtensionDays ?? 0,
+    }));
+
+    // Containers for dynamic sections
+    const summaryContainer = el('div');
+    const filterContainer = el('div');
+    const tableContainer = el('div');
+
+    // Header
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Change Orders'));
     const newBtn = el('a', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90') as HTMLAnchorElement;
@@ -219,13 +264,51 @@ export default {
     newBtn.textContent = 'New Change Order';
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
+    wrapper.appendChild(summaryContainer);
+    wrapper.appendChild(filterContainer);
+    wrapper.appendChild(tableContainer);
 
-    wrapper.appendChild(buildSummaryCards());
-    wrapper.appendChild(buildFilterBar((_status, _type, _search) => { /* filter placeholder */ }));
+    // Apply filter and re-render dynamic sections
+    const applyFilter = (status: string, type: string, search: string) => {
+      let filtered = allRows;
+      if (status) {
+        filtered = filtered.filter((co) => co.status === status);
+      }
+      if (type) {
+        filtered = filtered.filter((co) => co.type === type);
+      }
+      if (search) {
+        const term = search.toLowerCase();
+        filtered = filtered.filter((co) =>
+          co.number.toLowerCase().includes(term) ||
+          co.title.toLowerCase().includes(term),
+        );
+      }
+      renderContent(filtered);
+    };
 
-    const rows: CORow[] = [];
-    wrapper.appendChild(buildTable(rows));
+    const renderContent = (rows: CORow[]) => {
+      summaryContainer.innerHTML = '';
+      summaryContainer.appendChild(buildSummaryCards(rows));
 
+      tableContainer.innerHTML = '';
+      tableContainer.appendChild(buildTable(rows));
+    };
+
+    // Build filter bar (only once)
+    filterContainer.appendChild(buildFilterBar(applyFilter));
+
+    // Initial render with all rows
+    renderContent(allRows);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Operation failed';
+    showMsg(wrapper, message, true);
+  }
+})();
+
+export default {
+  render(container: HTMLElement): void {
+    container.innerHTML = '';
     container.appendChild(wrapper);
   },
 };

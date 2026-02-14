@@ -2,7 +2,10 @@
  * Work Order List view.
  * Filterable table of work orders with number, type, priority badge, status,
  * assigned technician, and dates.
+ * Integrates with ServiceMgmtService for live data.
  */
+
+import { getServiceMgmtService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -20,6 +23,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(msg: string, type: 'success' | 'error' | 'info' = 'info'): void {
+  const colors: Record<string, string> = {
+    success: 'bg-emerald-600',
+    error: 'bg-red-600',
+    info: 'bg-blue-600',
+  };
+  const toast = el('div', `fixed top-4 right-4 z-50 px-4 py-3 rounded-md text-white text-sm shadow-lg ${colors[type]}`);
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 // ---------------------------------------------------------------------------
@@ -80,10 +95,37 @@ interface WorkOrderRow {
   type: string;
   priority: string;
   status: string;
-  customerName: string;
+  customerId: string;
   assignedTo: string;
   scheduledDate: string;
   totalAmount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Summary Cards
+// ---------------------------------------------------------------------------
+
+function buildSummaryCards(workOrders: WorkOrderRow[]): HTMLElement {
+  const row = el('div', 'grid grid-cols-4 gap-4 mb-4');
+
+  const totalCount = workOrders.length;
+  const openCount = workOrders.filter(wo => wo.status === 'open' || wo.status === 'assigned' || wo.status === 'in_progress').length;
+  const emergencyCount = workOrders.filter(wo => wo.priority === 'emergency').length;
+  const totalAmount = workOrders.reduce((sum, wo) => sum + wo.totalAmount, 0);
+
+  const buildCard = (label: string, value: string, accent?: boolean): HTMLElement => {
+    const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4');
+    card.appendChild(el('div', 'text-sm text-[var(--text-muted)] mb-1', label));
+    card.appendChild(el('div', `text-xl font-bold ${accent ? 'text-[var(--accent)]' : 'text-[var(--text)]'}`, value));
+    return card;
+  };
+
+  row.appendChild(buildCard('Total Work Orders', String(totalCount)));
+  row.appendChild(buildCard('Open / Active', String(openCount), true));
+  row.appendChild(buildCard('Emergency', String(emergencyCount), emergencyCount > 0));
+  row.appendChild(buildCard('Total Amount', fmtCurrency(totalAmount)));
+
+  return row;
 }
 
 // ---------------------------------------------------------------------------
@@ -183,9 +225,9 @@ function buildTable(workOrders: WorkOrderRow[]): HTMLElement {
     tdStatus.appendChild(statusBadge);
     tr.appendChild(tdStatus);
 
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text)]', wo.customerName));
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', wo.assignedTo));
-    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', wo.scheduledDate));
+    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text)]', wo.customerId));
+    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', wo.assignedTo || '--'));
+    tr.appendChild(el('td', 'py-2 px-3 text-[var(--text-muted)]', wo.scheduledDate || '--'));
     tr.appendChild(el('td', 'py-2 px-3 text-right font-mono', fmtCurrency(wo.totalAmount)));
 
     const tdActions = el('td', 'py-2 px-3');
@@ -211,6 +253,7 @@ export default {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
+    // Header
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Work Orders'));
     const newBtn = el('a', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90') as HTMLAnchorElement;
@@ -219,11 +262,62 @@ export default {
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildFilterBar((_status, _type, _priority, _search) => { /* filter placeholder */ }));
-
-    const workOrders: WorkOrderRow[] = [];
-    wrapper.appendChild(buildTable(workOrders));
-
+    // Loading indicator
+    const loadingEl = el('div', 'text-center py-8 text-[var(--text-muted)]', 'Loading work orders...');
+    wrapper.appendChild(loadingEl);
     container.appendChild(wrapper);
+
+    // Load data from service
+    const svc = getServiceMgmtService();
+    svc.listWorkOrders().then((rawWorkOrders) => {
+      const allWorkOrders: WorkOrderRow[] = rawWorkOrders.map(wo => ({
+        id: wo.id,
+        number: wo.number,
+        type: wo.type,
+        priority: wo.priority,
+        status: wo.status,
+        customerId: wo.customerId,
+        assignedTo: wo.assignedTo ?? '',
+        scheduledDate: wo.scheduledDate ?? '',
+        totalAmount: wo.totalAmount,
+      }));
+
+      // Remove loading indicator
+      loadingEl.remove();
+
+      // Summary cards
+      const summaryEl = buildSummaryCards(allWorkOrders);
+      wrapper.appendChild(summaryEl);
+
+      // Container for the table (will be replaced on filter)
+      const tableContainer = el('div');
+
+      // Filter bar with client-side filtering
+      const filterBar = buildFilterBar((status, type, priority, search) => {
+        const searchLower = search.toLowerCase();
+        const filtered = allWorkOrders.filter(wo => {
+          if (status && wo.status !== status) return false;
+          if (type && wo.type !== type) return false;
+          if (priority && wo.priority !== priority) return false;
+          if (search) {
+            const haystack = `${wo.number} ${wo.customerId} ${wo.assignedTo} ${wo.type} ${wo.status}`.toLowerCase();
+            if (!haystack.includes(searchLower)) return false;
+          }
+          return true;
+        });
+        tableContainer.innerHTML = '';
+        tableContainer.appendChild(buildTable(filtered));
+      });
+      wrapper.appendChild(filterBar);
+
+      // Initial table render
+      tableContainer.appendChild(buildTable(allWorkOrders));
+      wrapper.appendChild(tableContainer);
+    }).catch((err: unknown) => {
+      loadingEl.remove();
+      const errMsg = err instanceof Error ? err.message : String(err);
+      showMsg(`Failed to load work orders: ${errMsg}`, 'error');
+      wrapper.appendChild(el('div', 'text-center py-8 text-red-400', `Error loading work orders: ${errMsg}`));
+    });
   },
 };

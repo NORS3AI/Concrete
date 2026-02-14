@@ -1,7 +1,10 @@
 /**
  * Change Order Request (PCO/COR) List view.
  * Filterable table of requests with status badges, source type, estimated amount.
+ * Wired to ChangeOrderService for live data.
  */
+
+import { getChangeOrderService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -19,6 +22,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +86,33 @@ interface RequestRow {
   requestDate: string;
   estimatedAmount: number;
   scheduleImpactDays: number;
+}
+
+// ---------------------------------------------------------------------------
+// Summary Cards
+// ---------------------------------------------------------------------------
+
+function buildSummaryCards(rows: RequestRow[]): HTMLElement {
+  const row = el('div', 'grid grid-cols-4 gap-3 mb-4');
+
+  const totalCount = rows.length;
+  const pendingCount = rows.filter((r) => r.status === 'pending').length;
+  const approvedCount = rows.filter((r) => r.status === 'approved').length;
+  const totalEstimated = rows.reduce((sum, r) => sum + r.estimatedAmount, 0);
+
+  const buildCard = (label: string, value: string, colorCls?: string): HTMLElement => {
+    const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-3 text-center');
+    card.appendChild(el('div', 'text-xs text-[var(--text-muted)] mb-1', label));
+    card.appendChild(el('div', `text-lg font-bold font-mono ${colorCls ?? 'text-[var(--text)]'}`, value));
+    return card;
+  };
+
+  row.appendChild(buildCard('Total Requests', String(totalCount), 'text-[var(--text)]'));
+  row.appendChild(buildCard('Pending', String(pendingCount), 'text-amber-400'));
+  row.appendChild(buildCard('Approved', String(approvedCount), 'text-emerald-400'));
+  row.appendChild(buildCard('Est. Total', fmtCurrency(totalEstimated), 'text-[var(--accent)]'));
+
+  return row;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,11 +220,32 @@ function buildTable(rows: RequestRow[]): HTMLElement {
 // Render
 // ---------------------------------------------------------------------------
 
-export default {
-  render(container: HTMLElement): void {
-    container.innerHTML = '';
-    const wrapper = el('div', 'space-y-0');
+const wrapper = el('div', 'space-y-0');
 
+void (async () => {
+  try {
+    const svc = getChangeOrderService();
+
+    // Load all requests (unfiltered) for initial render
+    const allRequests = svc.listRequests();
+    let allRows: RequestRow[] = allRequests.map((req) => ({
+      id: req.id as string,
+      number: req.number,
+      title: req.title,
+      source: req.source,
+      status: req.status,
+      requestedBy: req.requestedBy ?? '',
+      requestDate: req.requestDate ?? '',
+      estimatedAmount: req.estimatedAmount ?? 0,
+      scheduleImpactDays: req.scheduleImpactDays ?? 0,
+    }));
+
+    // Containers for dynamic sections
+    const summaryContainer = el('div');
+    const filterContainer = el('div');
+    const tableContainer = el('div');
+
+    // Header
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Change Order Requests (PCOs)'));
     const newBtn = el('a', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90') as HTMLAnchorElement;
@@ -190,12 +253,52 @@ export default {
     newBtn.textContent = 'New Request';
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
+    wrapper.appendChild(summaryContainer);
+    wrapper.appendChild(filterContainer);
+    wrapper.appendChild(tableContainer);
 
-    wrapper.appendChild(buildFilterBar((_status, _source, _search) => { /* filter placeholder */ }));
+    // Apply filter and re-render dynamic sections
+    const applyFilter = (status: string, source: string, search: string) => {
+      let filtered = allRows;
+      if (status) {
+        filtered = filtered.filter((r) => r.status === status);
+      }
+      if (source) {
+        filtered = filtered.filter((r) => r.source === source);
+      }
+      if (search) {
+        const term = search.toLowerCase();
+        filtered = filtered.filter((r) =>
+          r.number.toLowerCase().includes(term) ||
+          r.title.toLowerCase().includes(term) ||
+          r.requestedBy.toLowerCase().includes(term),
+        );
+      }
+      renderContent(filtered);
+    };
 
-    const rows: RequestRow[] = [];
-    wrapper.appendChild(buildTable(rows));
+    const renderContent = (rows: RequestRow[]) => {
+      summaryContainer.innerHTML = '';
+      summaryContainer.appendChild(buildSummaryCards(rows));
 
+      tableContainer.innerHTML = '';
+      tableContainer.appendChild(buildTable(rows));
+    };
+
+    // Build filter bar (only once)
+    filterContainer.appendChild(buildFilterBar(applyFilter));
+
+    // Initial render with all rows
+    renderContent(allRows);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Operation failed';
+    showMsg(wrapper, message, true);
+  }
+})();
+
+export default {
+  render(container: HTMLElement): void {
+    container.innerHTML = '';
     container.appendChild(wrapper);
   },
 };

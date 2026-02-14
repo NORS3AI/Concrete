@@ -1,7 +1,10 @@
 /**
  * Tenant List view.
  * Filterable table of tenants with plan badges, status, user count, and storage.
+ * Wired to TenantService for live data.
  */
+
+import { getTenantService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,6 +19,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -113,8 +128,13 @@ function buildFilterBar(
 // Summary Cards
 // ---------------------------------------------------------------------------
 
-function buildSummaryCards(): HTMLElement {
+function buildSummaryCards(tenants: TenantRow[]): HTMLElement {
   const row = el('div', 'grid grid-cols-4 gap-4 mb-4');
+
+  const total = tenants.length;
+  const activeCount = tenants.filter((t) => t.status === 'active').length;
+  const trialCount = tenants.filter((t) => t.status === 'trial').length;
+  const suspendedCount = tenants.filter((t) => t.status === 'suspended').length;
 
   const buildCard = (label: string, value: string, colorCls?: string): HTMLElement => {
     const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4');
@@ -123,10 +143,10 @@ function buildSummaryCards(): HTMLElement {
     return card;
   };
 
-  row.appendChild(buildCard('Total Tenants', '0', 'text-[var(--accent)]'));
-  row.appendChild(buildCard('Active', '0', 'text-emerald-400'));
-  row.appendChild(buildCard('Trial', '0', 'text-blue-400'));
-  row.appendChild(buildCard('Suspended', '0', 'text-amber-400'));
+  row.appendChild(buildCard('Total Tenants', String(total), 'text-[var(--accent)]'));
+  row.appendChild(buildCard('Active', String(activeCount), 'text-emerald-400'));
+  row.appendChild(buildCard('Trial', String(trialCount), 'text-blue-400'));
+  row.appendChild(buildCard('Suspended', String(suspendedCount), 'text-amber-400'));
 
   return row;
 }
@@ -221,12 +241,88 @@ export default {
     headerRow.appendChild(newBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildSummaryCards());
-    wrapper.appendChild(buildFilterBar((_status, _plan, _search) => { /* filter placeholder */ }));
+    // Placeholder containers that will be replaced once data loads
+    const summarySlot = el('div');
+    wrapper.appendChild(summarySlot);
 
-    const tenants: TenantRow[] = [];
-    wrapper.appendChild(buildTable(tenants));
+    // All tenants loaded from the service (unfiltered by search, but filtered by status/plan)
+    let allRows: TenantRow[] = [];
 
+    // Reference to the current table element so we can swap it out
+    let tableSlot = el('div');
+
+    const rebuildContent = (rows: TenantRow[], search: string) => {
+      // Client-side search filter on name/slug
+      let filtered = rows;
+      const q = search.trim().toLowerCase();
+      if (q) {
+        filtered = rows.filter(
+          (t) => t.name.toLowerCase().includes(q) || t.slug.toLowerCase().includes(q),
+        );
+      }
+
+      // Rebuild summary cards from full (non-search-filtered) dataset
+      const newSummary = buildSummaryCards(rows);
+      summarySlot.replaceChildren(newSummary);
+
+      // Rebuild table with filtered data
+      const newTable = buildTable(filtered);
+      tableSlot.replaceChildren(newTable);
+    };
+
+    const loadData = async (status: string, plan: string, search: string) => {
+      try {
+        const svc = getTenantService();
+
+        const filters: { status?: string; plan?: string } = {};
+        if (status) filters.status = status;
+        if (plan) filters.plan = plan;
+
+        const tenants = await svc.getTenants(filters as Parameters<typeof svc.getTenants>[0]);
+
+        // Map to TenantRow, fetching usage stats for user counts
+        const rows: TenantRow[] = [];
+        for (const t of tenants) {
+          let userCount = 0;
+          try {
+            const stats = await svc.getUsageStats(t.id);
+            userCount = stats.userCount;
+          } catch {
+            // Fallback: cannot get stats
+          }
+          rows.push({
+            id: t.id,
+            name: t.name,
+            slug: t.slug,
+            status: t.status,
+            plan: t.plan,
+            dataRegion: t.dataRegion,
+            userCount,
+            maxUsers: t.maxUsers,
+            storageUsedMb: t.storageUsedMb,
+            storageLimitMb: t.storageLimitMb,
+            createdAt: t.createdAt,
+          });
+        }
+
+        allRows = rows;
+        rebuildContent(allRows, search);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        showMsg(wrapper, `Failed to load tenants: ${message}`, true);
+      }
+    };
+
+    wrapper.appendChild(
+      buildFilterBar((status, plan, search) => {
+        loadData(status, plan, search);
+      }),
+    );
+
+    wrapper.appendChild(tableSlot);
     container.appendChild(wrapper);
+
+    // Initial load with no filters
+    loadData('', '', '');
   },
 };

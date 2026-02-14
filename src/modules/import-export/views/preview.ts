@@ -2,22 +2,38 @@
  * Import Preview (Dry-Run) view.
  * Displays the results of a dry-run preview showing what will be
  * added, updated, skipped, or flagged as conflicts before committing.
- * Includes diff view for conflicting records.
+ * Includes diff view for conflicting records, per-row resolution,
+ * progress tracking, and commit/cancel actions.
+ *
+ * Fully wired to ImportExportService for preview, commit, and delete.
  */
+
+import { getImportExportService } from '../service-accessor';
+import type { PreviewRow, PreviewResult } from '../import-export-service';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  cls?: string,
-  text?: string,
+  tag: K, cls?: string, text?: string,
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -32,17 +48,17 @@ const ACTION_BADGE: Record<string, { cls: string; label: string }> = {
 };
 
 // ---------------------------------------------------------------------------
-// Types
+// Parse batchId from hash
 // ---------------------------------------------------------------------------
 
-interface PreviewRowDisplay {
-  rowNumber: number;
-  action: string;
-  fields: Record<string, unknown>;
-  existingFields?: Record<string, unknown>;
-  conflicts?: { field: string; sourceValue: unknown; existingValue: unknown }[];
-  errors?: string[];
-  warnings?: string[];
+function parseBatchId(): string | null {
+  const hash = window.location.hash;
+  // Expected: #/import-export/import/{batchId}
+  const match = hash.match(/import\/([^/]+)$/);
+  if (match) return match[1];
+  const match2 = hash.match(/import\/([^/]+)\//);
+  if (match2) return match2[1];
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,13 +100,17 @@ function buildSummaryCards(summary: {
 // Preview Table
 // ---------------------------------------------------------------------------
 
-function buildPreviewTable(rows: PreviewRowDisplay[]): HTMLElement {
+function buildPreviewTable(
+  rows: PreviewRow[],
+  resolutions: Record<number, 'add' | 'update' | 'skip'>,
+  onResolutionChange: (rowNumber: number, action: 'add' | 'update' | 'skip') => void,
+): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
   const thead = el('thead');
   const headRow = el('tr', 'text-left text-[var(--text-muted)] border-b border-[var(--border)]');
-  for (const col of ['Row', 'Action', 'Data Preview', 'Conflicts', 'Issues']) {
+  for (const col of ['Row', 'Action', 'Data Preview', 'Conflicts', 'Issues', 'Resolution']) {
     headRow.appendChild(el('th', 'py-2 px-3 font-medium', col));
   }
   thead.appendChild(headRow);
@@ -101,13 +121,13 @@ function buildPreviewTable(rows: PreviewRowDisplay[]): HTMLElement {
   if (rows.length === 0) {
     const tr = el('tr');
     const td = el('td', 'py-8 px-3 text-center text-[var(--text-muted)]', 'No preview data available. Run the preview step first.');
-    td.setAttribute('colspan', '5');
+    td.setAttribute('colspan', '6');
     tr.appendChild(td);
     tbody.appendChild(tr);
   }
 
   for (const row of rows) {
-    const tr = el('tr', 'border-b border-[var(--border)] hover:bg-[var(--surface)] transition-colors');
+    const tr = el('tr', 'border-b border-[var(--border)] hover:bg-[var(--surface)] transition-colors cursor-pointer');
 
     tr.appendChild(el('td', 'py-2 px-3 font-mono text-[var(--text-muted)]', String(row.rowNumber)));
 
@@ -117,9 +137,8 @@ function buildPreviewTable(rows: PreviewRowDisplay[]): HTMLElement {
     tr.appendChild(tdAction);
 
     const tdData = el('td', 'py-2 px-3');
-    const fieldPairs = Object.entries(row.fields).slice(0, 4);
-    const fieldSummary = fieldPairs.map(([k, v]) => `${k}: ${v}`).join(', ');
-    tdData.appendChild(el('span', 'text-[var(--text-muted)] text-xs', fieldSummary));
+    const dataStr = JSON.stringify(row.sourceData);
+    tdData.appendChild(el('span', 'text-[var(--text-muted)] text-xs', dataStr.length > 100 ? dataStr.substring(0, 100) + '...' : dataStr));
     tr.appendChild(tdData);
 
     const tdConflicts = el('td', 'py-2 px-3');
@@ -160,6 +179,101 @@ function buildPreviewTable(rows: PreviewRowDisplay[]): HTMLElement {
     tdIssues.appendChild(issueList);
     tr.appendChild(tdIssues);
 
+    // Resolution dropdown (for conflict rows)
+    const tdResolution = el('td', 'py-2 px-3');
+    if (row.action === 'conflict') {
+      const inputCls = 'bg-[var(--surface)] border border-[var(--border)] rounded-md px-2 py-1 text-xs text-[var(--text)]';
+      const select = el('select', inputCls) as HTMLSelectElement;
+      const options: { value: 'add' | 'update' | 'skip'; label: string }[] = [
+        { value: 'skip', label: 'Skip' },
+        { value: 'add', label: 'Add as New' },
+        { value: 'update', label: 'Overwrite' },
+      ];
+      for (const opt of options) {
+        const o = el('option', '', opt.label) as HTMLOptionElement;
+        o.value = opt.value;
+        if (resolutions[row.rowNumber] === opt.value) o.selected = true;
+        select.appendChild(o);
+      }
+      select.addEventListener('change', (e) => {
+        e.stopPropagation();
+        onResolutionChange(row.rowNumber, select.value as 'add' | 'update' | 'skip');
+      });
+      select.addEventListener('click', (e) => e.stopPropagation());
+      tdResolution.appendChild(select);
+    } else {
+      tdResolution.appendChild(el('span', 'text-xs text-[var(--text-muted)]', '--'));
+    }
+    tr.appendChild(tdResolution);
+
+    // Expand row on click for side-by-side diff
+    tr.addEventListener('click', () => {
+      const next = tr.nextElementSibling;
+      if (next?.getAttribute('data-expand') === '1') {
+        next.remove();
+        return;
+      }
+
+      const expandRow = el('tr');
+      expandRow.setAttribute('data-expand', '1');
+      const expandTd = el('td', 'p-4 bg-[var(--surface)]');
+      expandTd.setAttribute('colspan', '6');
+
+      const diffGrid = el('div', 'grid grid-cols-2 gap-4');
+
+      // Source panel
+      const sourcePanel = el('div', 'bg-[var(--surface-raised)] rounded-lg p-4 border border-emerald-500/20');
+      sourcePanel.appendChild(el('h4', 'text-sm font-bold text-emerald-400 mb-2', 'Incoming (Source)'));
+      if (row.sourceData) {
+        for (const [field, value] of Object.entries(row.sourceData)) {
+          const isConflict = row.conflicts?.some((c) => c.field === field);
+          const fieldRow = el('div', 'flex justify-between text-xs mb-1');
+          fieldRow.appendChild(el('span', `font-medium ${isConflict ? 'text-amber-400' : 'text-[var(--text-muted)]'}`, field));
+          fieldRow.appendChild(el('span', `font-mono ${isConflict ? 'text-emerald-400 font-bold' : 'text-[var(--text)]'}`, value != null ? String(value) : '--'));
+          sourcePanel.appendChild(fieldRow);
+        }
+      } else {
+        sourcePanel.appendChild(el('p', 'text-xs text-[var(--text-muted)]', 'No source data'));
+      }
+      diffGrid.appendChild(sourcePanel);
+
+      // Existing panel
+      const existingPanel = el('div', 'bg-[var(--surface-raised)] rounded-lg p-4 border border-red-500/20');
+      existingPanel.appendChild(el('h4', 'text-sm font-bold text-red-400 mb-2', 'Existing (Current)'));
+      if (row.existingData) {
+        for (const [field, value] of Object.entries(row.existingData)) {
+          const isConflict = row.conflicts?.some((c) => c.field === field);
+          const fieldRow = el('div', 'flex justify-between text-xs mb-1');
+          fieldRow.appendChild(el('span', `font-medium ${isConflict ? 'text-amber-400' : 'text-[var(--text-muted)]'}`, field));
+          fieldRow.appendChild(el('span', `font-mono ${isConflict ? 'text-red-400 font-bold' : 'text-[var(--text)]'}`, value != null ? String(value) : '--'));
+          existingPanel.appendChild(fieldRow);
+        }
+      } else {
+        existingPanel.appendChild(el('p', 'text-xs text-[var(--text-muted)]', 'No existing record'));
+      }
+      diffGrid.appendChild(existingPanel);
+
+      expandTd.appendChild(diffGrid);
+
+      // Conflict fields highlighted
+      if (row.conflicts && row.conflicts.length > 0) {
+        const conflictSection = el('div', 'mt-3 bg-[var(--surface-raised)] rounded-lg p-3 border border-amber-500/20');
+        conflictSection.appendChild(el('h5', 'text-xs font-bold text-amber-400 mb-2', `Conflicting Fields (${row.conflicts.length})`));
+        for (const cf of row.conflicts) {
+          const cfRow = el('div', 'flex items-center gap-3 text-xs mb-1');
+          cfRow.appendChild(el('span', 'font-medium text-[var(--text)]', cf.field));
+          cfRow.appendChild(el('span', 'text-red-400 line-through', String(cf.existingValue ?? '--')));
+          cfRow.appendChild(el('span', 'text-[var(--text-muted)]', '\u2192'));
+          cfRow.appendChild(el('span', 'text-emerald-400 font-bold', String(cf.sourceValue ?? '--')));
+          conflictSection.appendChild(cfRow);
+        }
+        expandTd.appendChild(conflictSection);
+      }
+
+      expandRow.appendChild(expandTd);
+      tr.after(expandRow);
+    });
+
     tbody.appendChild(tr);
   }
 
@@ -169,48 +283,43 @@ function buildPreviewTable(rows: PreviewRowDisplay[]): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
-// Diff Panel
-// ---------------------------------------------------------------------------
-
-function buildDiffPanel(): HTMLElement {
-  const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6 mb-4');
-  card.appendChild(el('h3', 'text-lg font-semibold text-[var(--text)] mb-4', 'Side-by-Side Diff'));
-  card.appendChild(el('p', 'text-sm text-[var(--text-muted)]', 'Select a row with conflicts above to see a detailed side-by-side comparison of the incoming data vs. existing data.'));
-
-  const diffGrid = el('div', 'grid grid-cols-2 gap-4 mt-4');
-
-  const sourcePanel = el('div', 'bg-[var(--surface)] rounded-lg p-4 border border-emerald-500/20');
-  sourcePanel.appendChild(el('h4', 'text-sm font-bold text-emerald-400 mb-2', 'Incoming (Source)'));
-  sourcePanel.appendChild(el('p', 'text-xs text-[var(--text-muted)]', 'No conflict selected'));
-  diffGrid.appendChild(sourcePanel);
-
-  const existingPanel = el('div', 'bg-[var(--surface)] rounded-lg p-4 border border-red-500/20');
-  existingPanel.appendChild(el('h4', 'text-sm font-bold text-red-400 mb-2', 'Existing (Current)'));
-  existingPanel.appendChild(el('p', 'text-xs text-[var(--text-muted)]', 'No conflict selected'));
-  diffGrid.appendChild(existingPanel);
-
-  card.appendChild(diffGrid);
-  return card;
-}
-
-// ---------------------------------------------------------------------------
 // Progress Bar
 // ---------------------------------------------------------------------------
 
-function buildProgressBar(percent: number, label: string): HTMLElement {
-  const container = el('div', 'mb-4');
+function buildProgressBar(): {
+  container: HTMLElement;
+  update: (percent: number, label?: string) => void;
+  show: () => void;
+  hide: () => void;
+} {
+  const container = el('div', 'mb-4 hidden');
   const labelRow = el('div', 'flex justify-between text-sm mb-1');
-  labelRow.appendChild(el('span', 'text-[var(--text)]', label));
-  labelRow.appendChild(el('span', 'text-[var(--text-muted)]', `${percent}%`));
+  const labelEl = el('span', 'text-[var(--text)]', 'Import Progress');
+  const pctEl = el('span', 'text-[var(--text-muted)]', '0%');
+  labelRow.appendChild(labelEl);
+  labelRow.appendChild(pctEl);
   container.appendChild(labelRow);
 
   const track = el('div', 'h-2 rounded-full bg-[var(--surface)] overflow-hidden');
   const fill = el('div', 'h-full rounded-full bg-[var(--accent)] transition-all duration-300');
-  fill.style.width = `${percent}%`;
+  fill.style.width = '0%';
   track.appendChild(fill);
   container.appendChild(track);
 
-  return container;
+  return {
+    container,
+    update(percent: number, label?: string) {
+      fill.style.width = `${percent}%`;
+      pctEl.textContent = `${percent}%`;
+      if (label) labelEl.textContent = label;
+    },
+    show() {
+      container.className = 'mb-4';
+    },
+    hide() {
+      container.className = 'mb-4 hidden';
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -222,45 +331,32 @@ export default {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
+    const svc = getImportExportService();
+    const batchId = parseBatchId();
+
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Import Preview'));
     wrapper.appendChild(headerRow);
 
     wrapper.appendChild(el('p', 'text-sm text-[var(--text-muted)] mb-4', 'Review the dry-run results below. No data has been changed yet. Verify the actions and resolve any conflicts before committing.'));
 
-    wrapper.appendChild(buildSummaryCards({
-      totalRows: 0,
-      toAdd: 0,
-      toUpdate: 0,
-      toSkip: 0,
-      conflicts: 0,
-      errors: 0,
-      warnings: 0,
-    }));
+    // Summary placeholder
+    const summaryArea = el('div');
+    wrapper.appendChild(summaryArea);
 
-    wrapper.appendChild(buildProgressBar(0, 'Import Progress'));
+    // Progress bar
+    const progress = buildProgressBar();
+    wrapper.appendChild(progress.container);
 
-    const filterBar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
-    const filterBtnCls = 'px-3 py-1 rounded-md text-xs font-medium border transition-colors';
-    const filters = [
-      { label: 'All', value: 'all', active: true },
-      { label: 'To Add', value: 'add', active: false },
-      { label: 'To Update', value: 'update', active: false },
-      { label: 'To Skip', value: 'skip', active: false },
-      { label: 'Conflicts', value: 'conflict', active: false },
-      { label: 'Errors', value: 'error', active: false },
-    ];
-    for (const filter of filters) {
-      const btnCls = filter.active
-        ? `${filterBtnCls} bg-[var(--accent)] text-white border-[var(--accent)]`
-        : `${filterBtnCls} bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:bg-[var(--surface-raised)]`;
-      filterBar.appendChild(el('button', btnCls, filter.label));
-    }
-    wrapper.appendChild(filterBar);
+    // Filter bar placeholder
+    const filterArea = el('div');
+    wrapper.appendChild(filterArea);
 
-    wrapper.appendChild(buildDiffPanel());
-    wrapper.appendChild(buildPreviewTable([]));
+    // Table area
+    const tableArea = el('div');
+    wrapper.appendChild(tableArea);
 
+    // Actions
     const actions = el('div', 'flex justify-between gap-3 mt-4');
     const backBtn = el('button', 'px-6 py-2 rounded-md text-sm font-medium bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:bg-[var(--surface-raised)]', 'Back to Mapping');
     actions.appendChild(backBtn);
@@ -273,5 +369,159 @@ export default {
     wrapper.appendChild(actions);
 
     container.appendChild(wrapper);
+
+    // --- State ---
+    let previewResult: PreviewResult | null = null;
+    let activeFilter = 'all';
+    const resolutions: Record<number, 'add' | 'update' | 'skip'> = {};
+
+    if (!batchId) {
+      summaryArea.appendChild(el('p', 'text-sm text-red-400', 'No batch ID found in the URL. Navigate from the Import Wizard.'));
+      return;
+    }
+
+    // --- Filter + render ---
+    const getFilteredRows = (): PreviewRow[] => {
+      if (!previewResult) return [];
+      const rows = previewResult.rows;
+      if (activeFilter === 'all') return rows;
+      if (activeFilter === 'error') return rows.filter((r) => r.errors && r.errors.length > 0);
+      return rows.filter((r) => r.action === activeFilter);
+    };
+
+    const renderTable = () => {
+      tableArea.innerHTML = '';
+      const filtered = getFilteredRows();
+      tableArea.appendChild(buildPreviewTable(
+        filtered,
+        resolutions,
+        (rowNumber, action) => {
+          resolutions[rowNumber] = action;
+        },
+      ));
+    };
+
+    const renderFilters = () => {
+      filterArea.innerHTML = '';
+      const filterBar = el('div', 'flex flex-wrap items-center gap-3 mb-4');
+      const filterBtnCls = 'px-3 py-1 rounded-md text-xs font-medium border transition-colors';
+      const filters = [
+        { label: 'All', value: 'all' },
+        { label: 'To Add', value: 'add' },
+        { label: 'To Update', value: 'update' },
+        { label: 'To Skip', value: 'skip' },
+        { label: 'Conflicts', value: 'conflict' },
+        { label: 'Errors', value: 'error' },
+      ];
+      for (const f of filters) {
+        const isActive = f.value === activeFilter;
+        const btnCls = isActive
+          ? `${filterBtnCls} bg-[var(--accent)] text-white border-[var(--accent)]`
+          : `${filterBtnCls} bg-[var(--surface)] text-[var(--text-muted)] border-[var(--border)] hover:bg-[var(--surface-raised)]`;
+        const btn = el('button', btnCls, f.label);
+        btn.addEventListener('click', () => {
+          activeFilter = f.value;
+          renderFilters();
+          renderTable();
+        });
+        filterBar.appendChild(btn);
+      }
+      filterArea.appendChild(filterBar);
+    };
+
+    // --- Load preview ---
+    const loadPreview = async () => {
+      summaryArea.innerHTML = '';
+      summaryArea.appendChild(el('p', 'text-sm text-[var(--text-muted)]', 'Loading preview...'));
+
+      try {
+        previewResult = await svc.preview(batchId);
+
+        // Initialize resolutions for conflict rows
+        for (const row of previewResult.rows) {
+          if (row.action === 'conflict' && !(row.rowNumber in resolutions)) {
+            resolutions[row.rowNumber] = 'skip';
+          }
+        }
+
+        // Render summary cards
+        summaryArea.innerHTML = '';
+        summaryArea.appendChild(buildSummaryCards({
+          totalRows: previewResult.totalRows,
+          toAdd: previewResult.toAdd,
+          toUpdate: previewResult.toUpdate,
+          toSkip: previewResult.toSkip,
+          conflicts: previewResult.conflicts,
+          errors: previewResult.errors,
+          warnings: previewResult.warnings,
+        }));
+
+        renderFilters();
+        renderTable();
+      } catch (err) {
+        summaryArea.innerHTML = '';
+        showMsg(wrapper, `Preview failed: ${err instanceof Error ? err.message : String(err)}`, true);
+      }
+    };
+
+    // --- Back ---
+    backBtn.addEventListener('click', () => {
+      window.location.hash = `#/import-export/import/${batchId}/mapping`;
+    });
+
+    // --- Cancel ---
+    cancelBtn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to cancel this import? The batch will be deleted.')) {
+        return;
+      }
+      try {
+        await svc.deleteBatch(batchId);
+        showMsg(wrapper, 'Import cancelled and batch deleted.', false);
+        window.location.hash = '#/import-export/history';
+      } catch (err) {
+        showMsg(wrapper, `Cannot delete batch: ${err instanceof Error ? err.message : String(err)}`, true);
+      }
+    });
+
+    // --- Commit ---
+    commitBtn.addEventListener('click', async () => {
+      commitBtn.disabled = true;
+      commitBtn.textContent = 'Committing...';
+      cancelBtn.style.display = 'none';
+      backBtn.style.display = 'none';
+      progress.show();
+
+      const onProgress = (percent: number) => {
+        progress.update(percent, percent >= 100 ? 'Complete!' : 'Importing...');
+      };
+
+      try {
+        const result = await svc.commit(batchId, resolutions, onProgress);
+
+        progress.update(100, 'Complete!');
+
+        // Show completion message
+        const statsMsg = `Import completed: ${result.importedRows} imported, ${result.skippedRows} skipped, ${result.errorRows} errors.`;
+        const isSuccess = result.status === 'completed';
+        showMsg(wrapper, statsMsg, !isSuccess);
+
+        // Replace commit button with link to history
+        commitBtn.textContent = 'View Import History';
+        commitBtn.disabled = false;
+        commitBtn.className = 'px-6 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90';
+        commitBtn.onclick = () => {
+          window.location.hash = '#/import-export/history';
+        };
+      } catch (err) {
+        showMsg(wrapper, `Commit failed: ${err instanceof Error ? err.message : String(err)}`, true);
+        commitBtn.disabled = false;
+        commitBtn.textContent = 'Retry Commit';
+        cancelBtn.style.display = '';
+        backBtn.style.display = '';
+        progress.hide();
+      }
+    });
+
+    loadPreview();
   },
 };

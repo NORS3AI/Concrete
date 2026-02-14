@@ -1,7 +1,10 @@
 /**
  * Cost Impact Analysis view.
  * Breakdown by cost type, markup summary, total impact for a change order.
+ * Wired to ChangeOrderService for live data.
  */
+
+import { getChangeOrderService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,11 +24,35 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
 // ---------------------------------------------------------------------------
 // Cost Type Cards
 // ---------------------------------------------------------------------------
 
-function buildCostTypeCards(): HTMLElement {
+interface CostImpactData {
+  labor: number;
+  material: number;
+  subcontract: number;
+  equipment: number;
+  overhead: number;
+  other: number;
+  subtotal: number;
+  markup: number;
+  total: number;
+}
+
+function buildCostTypeCards(impact: CostImpactData): HTMLElement {
   const row = el('div', 'grid grid-cols-3 gap-3 mb-6');
 
   const buildCard = (label: string, amount: string, colorCls: string): HTMLElement => {
@@ -35,12 +62,12 @@ function buildCostTypeCards(): HTMLElement {
     return card;
   };
 
-  row.appendChild(buildCard('Labor', fmtCurrency(0), 'text-blue-400'));
-  row.appendChild(buildCard('Material', fmtCurrency(0), 'text-emerald-400'));
-  row.appendChild(buildCard('Subcontract', fmtCurrency(0), 'text-purple-400'));
-  row.appendChild(buildCard('Equipment', fmtCurrency(0), 'text-amber-400'));
-  row.appendChild(buildCard('Overhead', fmtCurrency(0), 'text-orange-400'));
-  row.appendChild(buildCard('Other', fmtCurrency(0), 'text-zinc-400'));
+  row.appendChild(buildCard('Labor', fmtCurrency(impact.labor), 'text-blue-400'));
+  row.appendChild(buildCard('Material', fmtCurrency(impact.material), 'text-emerald-400'));
+  row.appendChild(buildCard('Subcontract', fmtCurrency(impact.subcontract), 'text-purple-400'));
+  row.appendChild(buildCard('Equipment', fmtCurrency(impact.equipment), 'text-amber-400'));
+  row.appendChild(buildCard('Overhead', fmtCurrency(impact.overhead), 'text-orange-400'));
+  row.appendChild(buildCard('Other', fmtCurrency(impact.other), 'text-zinc-400'));
 
   return row;
 }
@@ -103,7 +130,12 @@ function buildImpactTable(rows: ImpactRow[]): HTMLElement {
 // Markup Summary
 // ---------------------------------------------------------------------------
 
-function buildMarkupSummary(): HTMLElement {
+function buildMarkupSummary(
+  impact: CostImpactData,
+  scheduleExtensionDays: number,
+  effectiveDate: string,
+  approvedAmount: number,
+): HTMLElement {
   const section = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4 mt-4');
   section.appendChild(el('h3', 'text-sm font-semibold text-[var(--text-muted)] mb-3', 'MARKUP & TOTAL IMPACT'));
 
@@ -117,16 +149,16 @@ function buildMarkupSummary(): HTMLElement {
   };
 
   const col1 = el('div', 'space-y-2');
-  col1.appendChild(buildRow('Subtotal (All Cost Types)', fmtCurrency(0)));
-  col1.appendChild(buildRow('Total Markup', fmtCurrency(0)));
+  col1.appendChild(buildRow('Subtotal (All Cost Types)', fmtCurrency(impact.subtotal)));
+  col1.appendChild(buildRow('Total Markup', fmtCurrency(impact.markup)));
 
   const col2 = el('div', 'space-y-2');
-  col2.appendChild(buildRow('Schedule Impact', '0 days'));
-  col2.appendChild(buildRow('Effective Date', '-'));
+  col2.appendChild(buildRow('Schedule Impact', scheduleExtensionDays > 0 ? `${scheduleExtensionDays} days` : '0 days'));
+  col2.appendChild(buildRow('Effective Date', effectiveDate || '-'));
 
   const col3 = el('div', 'space-y-2');
-  col3.appendChild(buildRow('Grand Total', fmtCurrency(0), true));
-  col3.appendChild(buildRow('Approved Amount', fmtCurrency(0)));
+  col3.appendChild(buildRow('Grand Total', fmtCurrency(impact.total), true));
+  col3.appendChild(buildRow('Approved Amount', fmtCurrency(approvedAmount)));
 
   grid.appendChild(col1);
   grid.appendChild(col2);
@@ -140,26 +172,84 @@ function buildMarkupSummary(): HTMLElement {
 // Render
 // ---------------------------------------------------------------------------
 
-export default {
-  render(container: HTMLElement): void {
-    container.innerHTML = '';
-    const wrapper = el('div', 'space-y-0');
+const wrapper = el('div', 'space-y-0');
 
+void (async () => {
+  try {
+    const svc = getChangeOrderService();
+
+    // Parse CO ID from hash
+    const match = location.hash.match(/#\/change-orders\/([^/]+)\/cost-impact/);
+    const coId = match?.[1] ?? null;
+
+    if (!coId) {
+      showMsg(wrapper, 'No change order ID found in URL.', true);
+      return;
+    }
+
+    // Load change order data
+    const co = svc.getChangeOrder(coId);
+    if (!co) {
+      showMsg(wrapper, `Change order not found: ${coId}`, true);
+      return;
+    }
+
+    // Load cost impact
+    const impact = svc.calculateCostImpact(coId);
+
+    // Header with CO title/number
     const headerRow = el('div', 'flex items-center justify-between mb-4');
-    headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Cost Impact Analysis'));
+    headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', `Cost Impact Analysis - ${co.number}`));
     const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', 'Back to Change Order') as HTMLAnchorElement;
-    backLink.href = '#/change-orders/list';
+    backLink.href = `#/change-orders/${coId}`;
     headerRow.appendChild(backLink);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildCostTypeCards());
+    // CO title subtitle
+    wrapper.appendChild(el('p', 'text-sm text-[var(--text-muted)] mb-4', co.title));
 
+    // Cost type cards with actual values
+    wrapper.appendChild(buildCostTypeCards(impact));
+
+    // Impact table
     wrapper.appendChild(el('h2', 'text-lg font-semibold text-[var(--text)] mb-3', 'Cost Breakdown'));
-    const rows: ImpactRow[] = [];
-    wrapper.appendChild(buildImpactTable(rows));
 
-    wrapper.appendChild(buildMarkupSummary());
+    // Build impact rows from the CostImpact breakdown
+    const costCategories: { category: string; amount: number }[] = [
+      { category: 'Labor', amount: impact.labor },
+      { category: 'Material', amount: impact.material },
+      { category: 'Subcontract', amount: impact.subcontract },
+      { category: 'Equipment', amount: impact.equipment },
+      { category: 'Overhead', amount: impact.overhead },
+      { category: 'Other', amount: impact.other },
+    ];
 
+    // Filter out zero-amount categories and compute percentages
+    const nonZeroCategories = costCategories.filter((c) => c.amount !== 0);
+    const impactRows: ImpactRow[] = nonZeroCategories.map((c) => ({
+      category: c.category,
+      amount: c.amount,
+      pctOfTotal: impact.subtotal > 0 ? (c.amount / impact.subtotal) * 100 : 0,
+    }));
+
+    wrapper.appendChild(buildImpactTable(impactRows));
+
+    // Markup summary with real totals
+    wrapper.appendChild(buildMarkupSummary(
+      impact,
+      co.scheduleExtensionDays ?? 0,
+      co.effectiveDate ?? '',
+      co.approvedAmount ?? 0,
+    ));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Operation failed';
+    showMsg(wrapper, message, true);
+  }
+})();
+
+export default {
+  render(container: HTMLElement): void {
+    container.innerHTML = '';
     container.appendChild(wrapper);
   },
 };

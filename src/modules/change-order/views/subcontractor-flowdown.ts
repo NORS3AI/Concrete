@@ -3,6 +3,8 @@
  * Link owner COs to subcontractor COs, track amount distribution.
  */
 
+import { getChangeOrderService } from '../service-accessor';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -19,6 +21,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(msg: string, type: 'success' | 'error' | 'info' = 'info'): void {
+  const colors: Record<string, string> = {
+    success: 'bg-emerald-600',
+    error: 'bg-red-600',
+    info: 'bg-blue-600',
+  };
+  const toast = el('div', `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-white text-sm shadow-lg ${colors[type]}`);
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 // ---------------------------------------------------------------------------
@@ -62,7 +76,10 @@ interface SubCORow {
 // Owner COs Table
 // ---------------------------------------------------------------------------
 
-function buildOwnerCOsTable(rows: OwnerCORow[]): HTMLElement {
+function buildOwnerCOsTable(
+  rows: OwnerCORow[],
+  onFlowDown: (ownerCO: OwnerCORow) => void,
+): HTMLElement {
   const section = el('div', 'space-y-3 mb-6');
   section.appendChild(el('h2', 'text-lg font-semibold text-[var(--text)] mb-2', 'Owner Change Orders'));
 
@@ -112,7 +129,7 @@ function buildOwnerCOsTable(rows: OwnerCORow[]): HTMLElement {
     const tdActions = el('td', 'py-2 px-3');
     const flowDownBtn = el('button', 'px-3 py-1 rounded text-xs font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Flow Down');
     flowDownBtn.type = 'button';
-    flowDownBtn.addEventListener('click', () => { /* flow-down placeholder */ });
+    flowDownBtn.addEventListener('click', () => onFlowDown(row));
     tdActions.appendChild(flowDownBtn);
     tr.appendChild(tdActions);
 
@@ -187,7 +204,12 @@ function buildSubCOsTable(rows: SubCORow[]): HTMLElement {
 // Distribution Summary
 // ---------------------------------------------------------------------------
 
-function buildDistributionSummary(): HTMLElement {
+function buildDistributionSummary(
+  ownerCount: number,
+  totalAmount: number,
+  distributedAmount: number,
+  undistributedAmount: number,
+): HTMLElement {
   const section = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4 mb-6');
   const grid = el('div', 'grid grid-cols-4 gap-4 text-center');
 
@@ -198,10 +220,10 @@ function buildDistributionSummary(): HTMLElement {
     return card;
   };
 
-  grid.appendChild(buildCard('Owner COs', '0', 'text-blue-400'));
-  grid.appendChild(buildCard('Total Amount', fmtCurrency(0), 'text-[var(--text)]'));
-  grid.appendChild(buildCard('Distributed', fmtCurrency(0), 'text-emerald-400'));
-  grid.appendChild(buildCard('Undistributed', fmtCurrency(0), 'text-amber-400'));
+  grid.appendChild(buildCard('Owner COs', String(ownerCount), 'text-blue-400'));
+  grid.appendChild(buildCard('Total Amount', fmtCurrency(totalAmount), 'text-[var(--text)]'));
+  grid.appendChild(buildCard('Distributed', fmtCurrency(distributedAmount), 'text-emerald-400'));
+  grid.appendChild(buildCard('Undistributed', fmtCurrency(undistributedAmount), 'text-amber-400'));
 
   section.appendChild(grid);
   return section;
@@ -211,8 +233,89 @@ function buildDistributionSummary(): HTMLElement {
 // Render
 // ---------------------------------------------------------------------------
 
-export default {
-  render(container: HTMLElement): void {
+async function loadAndRender(container: HTMLElement): Promise<void> {
+  const svc = getChangeOrderService();
+
+  // Show loading state
+  container.innerHTML = '';
+  const loadingEl = el('div', 'flex items-center justify-center py-12 text-[var(--text-muted)]', 'Loading flow-down data...');
+  container.appendChild(loadingEl);
+
+  try {
+    // Load owner COs and sub COs
+    const ownerCOs = await svc.listChangeOrders({ type: 'owner' });
+    const subCOs = await svc.listChangeOrders({ type: 'subcontractor' });
+
+    // Build a map of parentCOId -> sub COs by parsing the sub CO number pattern
+    // Sub COs have number like "PARENT-SUB-xxx" and description mentioning the parent
+    // We also need to look up parent CO numbers for display
+    const ownerIdToNumber = new Map<string, string>();
+    for (const oco of ownerCOs) {
+      ownerIdToNumber.set(oco.id, oco.number);
+    }
+
+    // Group sub COs by their parent (match via number prefix)
+    const subCOsByParentId = new Map<string, typeof subCOs>();
+    for (const sub of subCOs) {
+      // Try to find the parent by matching the sub CO number prefix
+      let parentId: string | undefined;
+      for (const oco of ownerCOs) {
+        if (sub.number.startsWith(oco.number + '-SUB-')) {
+          parentId = oco.id;
+          break;
+        }
+      }
+      if (parentId) {
+        if (!subCOsByParentId.has(parentId)) {
+          subCOsByParentId.set(parentId, []);
+        }
+        subCOsByParentId.get(parentId)!.push(sub);
+      }
+    }
+
+    // Build owner CO rows with distribution calculations
+    const ownerRows: OwnerCORow[] = ownerCOs.map((oco) => {
+      const linkedSubs = subCOsByParentId.get(oco.id) ?? [];
+      const distributedAmount = linkedSubs.reduce((sum, s) => sum + (s.amount || 0), 0);
+      const remainingAmount = (oco.amount || 0) - distributedAmount;
+      return {
+        id: oco.id,
+        number: oco.number,
+        title: oco.title,
+        amount: oco.amount,
+        status: oco.status,
+        distributedAmount,
+        remainingAmount,
+      };
+    });
+
+    // Build sub CO rows
+    const subRows: SubCORow[] = subCOs.map((sub) => {
+      // Extract subcontractId from the number pattern "PARENT-SUB-xxxxxx"
+      const parts = sub.number.split('-SUB-');
+      const subcontractId = parts.length > 1 ? parts[1] : '';
+      const parentNumber = parts.length > 0 ? parts[0] : '';
+
+      // Extract subcontractName from description or title
+      const subcontractName = sub.title || sub.description || subcontractId;
+
+      return {
+        id: sub.id,
+        number: sub.number,
+        subcontractId,
+        subcontractName,
+        amount: sub.amount,
+        status: sub.status,
+        parentCONumber: parentNumber,
+      };
+    });
+
+    // Compute summary totals
+    const totalAmount = ownerRows.reduce((sum, r) => sum + r.amount, 0);
+    const totalDistributed = ownerRows.reduce((sum, r) => sum + r.distributedAmount, 0);
+    const totalUndistributed = totalAmount - totalDistributed;
+
+    // Build the UI
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
@@ -220,14 +323,60 @@ export default {
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Subcontractor Flow-Down'));
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildDistributionSummary());
+    wrapper.appendChild(buildDistributionSummary(ownerRows.length, totalAmount, totalDistributed, totalUndistributed));
 
-    const ownerRows: OwnerCORow[] = [];
-    wrapper.appendChild(buildOwnerCOsTable(ownerRows));
+    const handleFlowDown = async (ownerCO: OwnerCORow) => {
+      const subcontractId = prompt('Subcontract ID:');
+      if (!subcontractId) {
+        showMsg('Subcontract ID is required.', 'error');
+        return;
+      }
 
-    const subRows: SubCORow[] = [];
+      const subcontractName = prompt('Subcontractor name (optional):') ?? undefined;
+
+      const amountStr = prompt(`Amount to flow down (remaining: ${fmtCurrency(ownerCO.remainingAmount)}):`);
+      if (!amountStr) {
+        showMsg('Amount is required.', 'error');
+        return;
+      }
+      const amount = parseFloat(amountStr);
+      if (isNaN(amount) || amount <= 0) {
+        showMsg('Please enter a valid positive amount.', 'error');
+        return;
+      }
+
+      const description = prompt('Description (optional):') ?? undefined;
+
+      try {
+        await svc.createSubcontractorCO({
+          parentCOId: ownerCO.id,
+          subcontractId,
+          subcontractName,
+          amount,
+          description,
+        });
+        showMsg('Subcontractor CO created successfully.', 'success');
+        await loadAndRender(container);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        showMsg(`Flow-down failed: ${message}`, 'error');
+      }
+    };
+
+    wrapper.appendChild(buildOwnerCOsTable(ownerRows, handleFlowDown));
     wrapper.appendChild(buildSubCOsTable(subRows));
 
     container.appendChild(wrapper);
+  } catch (err: unknown) {
+    container.innerHTML = '';
+    const message = err instanceof Error ? err.message : String(err);
+    const errorEl = el('div', 'flex items-center justify-center py-12 text-red-400', `Failed to load flow-down data: ${message}`);
+    container.appendChild(errorEl);
+  }
+}
+
+export default {
+  render(container: HTMLElement): void {
+    loadAndRender(container);
   },
 };

@@ -1,0 +1,35 @@
+export { hrManifest } from './manifest';
+export { HRService } from './hr-service';
+export { getHRService } from './service-accessor';
+
+export type {
+  EmployeeStatus,
+  EmployeeType,
+  PositionStatus,
+  CertificationType,
+  CertificationStatus,
+  TrainingStatus,
+  BenefitType,
+  BenefitPlanStatus,
+  EnrollmentStatus,
+  LeaveType,
+  LeaveStatus,
+  ApplicantStatus,
+  DocumentCategory,
+  EEORace,
+  EEOGender,
+  Employee,
+  Position,
+  Certification,
+  TrainingRecord,
+  BenefitPlan,
+  BenefitEnrollment,
+  LeaveRequest,
+  LeaveBalance,
+  Applicant,
+  EmployeeDocument,
+  CertExpirationAlert,
+  NewHireReport,
+  EEO1Summary,
+  HeadcountSummary,
+} from './hr-service';

@@ -4,6 +4,8 @@
  * and baseline vs. actual comparison.
  */
 
+import { getProjectService } from '../service-accessor';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -17,6 +19,25 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+function parseProjectId(): string {
+  const hash = window.location.hash;
+  const parts = hash.replace(/^#\/?/, '').split('/');
+  if (parts.length >= 2 && parts[0] === 'project') return parts[1];
+  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -149,10 +170,12 @@ export default {
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
+    const projectId = parseProjectId();
+
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Gantt Chart'));
     const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', 'Back to Project') as HTMLAnchorElement;
-    backLink.href = '#/project/list';
+    backLink.href = `#/project/${projectId}`;
     headerRow.appendChild(backLink);
     wrapper.appendChild(headerRow);
 
@@ -160,23 +183,107 @@ export default {
 
     const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden overflow-x-auto');
 
-    const defaultStart = new Date().toISOString().split('T')[0];
-    const totalDays = 90;
-
-    card.appendChild(buildDateHeader(defaultStart, totalDays));
-
-    // Sample empty state
-    const tasks: GanttTask[] = [];
-    if (tasks.length === 0) {
-      const empty = el('div', 'py-8 text-center text-[var(--text-muted)] text-sm', 'No tasks scheduled. Add tasks to see the Gantt chart.');
-      card.appendChild(empty);
-    }
-
-    for (const task of tasks) {
-      card.appendChild(buildTaskRow(task, defaultStart, totalDays));
-    }
+    // Show loading state initially
+    const loadingEl = el('div', 'py-8 text-center text-[var(--text-muted)] text-sm', 'Loading Gantt chart...');
+    card.appendChild(loadingEl);
 
     wrapper.appendChild(card);
     container.appendChild(wrapper);
+
+    // --- Service wiring ---
+    const svc = getProjectService();
+
+    (async () => {
+      try {
+        // Load project, tasks, and milestones in parallel
+        const [project, tasks, milestones] = await Promise.all([
+          svc.getProject(projectId),
+          svc.getTasks(projectId),
+          svc.getMilestones(projectId),
+        ]);
+
+        if (!project) {
+          card.innerHTML = '';
+          showMsg(wrapper, 'Project not found.', true);
+          return;
+        }
+
+        // Map tasks to GanttTask
+        const ganttTasks: GanttTask[] = tasks.map((t: any) => ({
+          id: t.id,
+          name: t.name || '',
+          startDate: t.startDate || '',
+          endDate: t.endDate || '',
+          percentComplete: t.percentComplete ?? 0,
+          isCriticalPath: t.isCriticalPath ?? false,
+          isMilestone: false,
+          status: t.status || 'not_started',
+        }));
+
+        // Map milestones to GanttTask
+        const ganttMilestones: GanttTask[] = milestones.map((m: any) => ({
+          id: m.id,
+          name: m.name || '',
+          startDate: m.dueDate || '',
+          endDate: m.dueDate || '',
+          percentComplete: m.status === 'completed' ? 100 : 0,
+          isCriticalPath: m.isCritical ?? false,
+          isMilestone: true,
+          status: m.status || 'not_started',
+        }));
+
+        // Combine and sort by startDate
+        const allItems = [...ganttTasks, ...ganttMilestones].sort((a, b) => {
+          if (!a.startDate) return 1;
+          if (!b.startDate) return -1;
+          return a.startDate.localeCompare(b.startDate);
+        });
+
+        // Calculate project start/end from project data, falling back to task min/max dates
+        let projectStart = project.startDate || '';
+        let projectEnd = project.endDate || '';
+
+        if (!projectStart || !projectEnd) {
+          const allDates = allItems
+            .flatMap((item) => [item.startDate, item.endDate])
+            .filter(Boolean)
+            .sort();
+          if (allDates.length > 0) {
+            if (!projectStart) projectStart = allDates[0];
+            if (!projectEnd) projectEnd = allDates[allDates.length - 1];
+          }
+        }
+
+        // Fallback if still no dates
+        if (!projectStart) projectStart = new Date().toISOString().split('T')[0];
+        if (!projectEnd) {
+          const d = new Date(projectStart);
+          d.setDate(d.getDate() + 90);
+          projectEnd = d.toISOString().split('T')[0];
+        }
+
+        const dayMs = 24 * 60 * 60 * 1000;
+        const totalDays = Math.max(
+          7,
+          Math.ceil((new Date(projectEnd).getTime() - new Date(projectStart).getTime()) / dayMs) + 1,
+        );
+
+        // Clear loading and render
+        card.innerHTML = '';
+        card.appendChild(buildDateHeader(projectStart, totalDays));
+
+        if (allItems.length === 0) {
+          const empty = el('div', 'py-8 text-center text-[var(--text-muted)] text-sm', 'No tasks scheduled. Add tasks to see the Gantt chart.');
+          card.appendChild(empty);
+        }
+
+        for (const task of allItems) {
+          card.appendChild(buildTaskRow(task, projectStart, totalDays));
+        }
+      } catch (err: any) {
+        card.innerHTML = '';
+        showMsg(wrapper, `Failed to load Gantt data: ${err.message ?? err}`, true);
+      }
+    })();
   },
 };

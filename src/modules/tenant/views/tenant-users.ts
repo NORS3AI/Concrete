@@ -1,7 +1,11 @@
 /**
  * Tenant Users view.
  * User management: invite, roles, status, remove.
+ * Wired to TenantService for live data, invite, role change, and removal.
  */
+
+import { getTenantService } from '../service-accessor';
+import type { TenantUserRole } from '../tenant-service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,6 +20,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
 }
 
 // ---------------------------------------------------------------------------
@@ -64,10 +80,14 @@ interface UserRow {
 }
 
 // ---------------------------------------------------------------------------
-// Invite Modal
+// Invite Form
 // ---------------------------------------------------------------------------
 
-function buildInviteForm(): HTMLElement {
+function buildInviteForm(
+  tenantId: string,
+  wrapper: HTMLElement,
+  onInvited: () => void,
+): HTMLElement {
   const card = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-6 mb-4');
   card.appendChild(el('h3', 'text-lg font-semibold text-[var(--text)] mb-4', 'Invite User'));
 
@@ -95,7 +115,26 @@ function buildInviteForm(): HTMLElement {
   const btnGroup = el('div', 'flex items-end');
   const inviteBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90', 'Send Invite');
   inviteBtn.type = 'button';
-  inviteBtn.addEventListener('click', () => { /* invite placeholder */ });
+  inviteBtn.addEventListener('click', async () => {
+    const userId = emailInput.value.trim();
+    const role = roleSelect.value as TenantUserRole;
+
+    if (!userId) {
+      showMsg(wrapper, 'Please enter a user ID or email address.', true);
+      return;
+    }
+
+    try {
+      const svc = getTenantService();
+      await svc.inviteUser(tenantId, userId, role);
+      showMsg(wrapper, `Invitation sent to ${userId} as ${role}.`, false);
+      emailInput.value = '';
+      onInvited();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      showMsg(wrapper, `Failed to invite user: ${message}`, true);
+    }
+  });
   btnGroup.appendChild(inviteBtn);
   grid.appendChild(btnGroup);
 
@@ -146,7 +185,12 @@ function buildFilterBar(
 // Table
 // ---------------------------------------------------------------------------
 
-function buildTable(users: UserRow[]): HTMLElement {
+function buildTable(
+  users: UserRow[],
+  tenantId: string,
+  wrapper: HTMLElement,
+  onChanged: () => void,
+): HTMLElement {
   const wrap = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg overflow-hidden');
   const table = el('table', 'w-full text-sm');
 
@@ -191,12 +235,49 @@ function buildTable(users: UserRow[]): HTMLElement {
     if (user.role !== 'owner') {
       const changeRoleBtn = el('button', 'text-[var(--accent)] hover:underline text-sm mr-2', 'Change Role');
       changeRoleBtn.type = 'button';
-      changeRoleBtn.addEventListener('click', () => { /* change role placeholder */ });
+      changeRoleBtn.addEventListener('click', async () => {
+        // Build a simple inline role selector
+        const newRole = prompt(
+          `Change role for ${user.userId}.\nCurrent role: ${user.role}\n\nEnter new role (admin, member, viewer):`,
+          user.role,
+        );
+        if (!newRole || newRole === user.role) return;
+
+        const validRoles = ['admin', 'member', 'viewer'];
+        if (!validRoles.includes(newRole)) {
+          showMsg(wrapper, `Invalid role "${newRole}". Choose from: ${validRoles.join(', ')}`, true);
+          return;
+        }
+
+        try {
+          const svc = getTenantService();
+          await svc.updateUserRole(tenantId, user.userId, newRole as TenantUserRole);
+          showMsg(wrapper, `Role updated to ${newRole} for ${user.userId}.`, false);
+          onChanged();
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          showMsg(wrapper, `Failed to change role: ${message}`, true);
+        }
+      });
       tdActions.appendChild(changeRoleBtn);
 
       const removeBtn = el('button', 'text-red-400 hover:underline text-sm', 'Remove');
       removeBtn.type = 'button';
-      removeBtn.addEventListener('click', () => { /* remove placeholder */ });
+      removeBtn.addEventListener('click', async () => {
+        if (!confirm(`Remove ${user.userId} from this tenant? This action cannot be undone.`)) {
+          return;
+        }
+
+        try {
+          const svc = getTenantService();
+          await svc.removeUser(tenantId, user.userId);
+          showMsg(wrapper, `${user.userId} has been removed.`, false);
+          onChanged();
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          showMsg(wrapper, `Failed to remove user: ${message}`, true);
+        }
+      });
       tdActions.appendChild(removeBtn);
     } else {
       tdActions.appendChild(el('span', 'text-[var(--text-muted)] text-xs', 'Owner'));
@@ -218,20 +299,33 @@ function buildTable(users: UserRow[]): HTMLElement {
 export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
+
+    // Extract tenantId from hash: #/tenant/{id}/users
+    const hash = window.location.hash;
+    const match = hash.match(/#\/tenant\/([^/]+)\/users/);
+    const tenantId = match ? match[1] : '';
+
+    if (!tenantId) {
+      container.appendChild(el('div', 'p-6 text-red-400', 'Missing tenant ID in URL.'));
+      return;
+    }
+
     const wrapper = el('div', 'space-y-0');
 
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Tenant Users'));
-    const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', 'Back to Tenants') as HTMLAnchorElement;
-    backLink.href = '#/tenant/list';
+    const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', 'Back to Tenant') as HTMLAnchorElement;
+    backLink.href = `#/tenant/${tenantId}`;
     headerRow.appendChild(backLink);
     wrapper.appendChild(headerRow);
 
     // Usage indicator
     const usageBar = el('div', 'bg-[var(--surface-raised)] border border-[var(--border)] rounded-lg p-4 mb-4');
     const usageRow = el('div', 'flex items-center justify-between mb-2');
-    usageRow.appendChild(el('span', 'text-sm text-[var(--text-muted)]', 'User Seats'));
-    usageRow.appendChild(el('span', 'text-sm font-mono text-[var(--text)]', '0 / 10 used'));
+    const usageLabel = el('span', 'text-sm text-[var(--text-muted)]', 'User Seats');
+    usageRow.appendChild(usageLabel);
+    const usageValue = el('span', 'text-sm font-mono text-[var(--text)]', '-- / -- used');
+    usageRow.appendChild(usageValue);
     usageBar.appendChild(usageRow);
     const progressOuter = el('div', 'w-full h-2 bg-[var(--surface)] rounded-full overflow-hidden');
     const progressInner = el('div', 'h-full bg-[var(--accent)] rounded-full');
@@ -240,12 +334,97 @@ export default {
     usageBar.appendChild(progressOuter);
     wrapper.appendChild(usageBar);
 
-    wrapper.appendChild(buildInviteForm());
-    wrapper.appendChild(buildFilterBar((_role, _status, _search) => { /* filter placeholder */ }));
+    // Current filter state
+    let currentRole = '';
+    let currentStatus = '';
+    let currentSearch = '';
 
-    const users: UserRow[] = [];
-    wrapper.appendChild(buildTable(users));
+    // All loaded users (from service, filtered by role/status)
+    let allUsers: UserRow[] = [];
 
+    // Table slot for swapping
+    const tableSlot = el('div');
+
+    const rebuildTable = () => {
+      // Client-side search filter on userId
+      let filtered = allUsers;
+      const q = currentSearch.trim().toLowerCase();
+      if (q) {
+        filtered = allUsers.filter((u) => u.userId.toLowerCase().includes(q));
+      }
+      tableSlot.replaceChildren(
+        buildTable(filtered, tenantId, wrapper, () => loadData()),
+      );
+    };
+
+    const loadData = async () => {
+      try {
+        const svc = getTenantService();
+
+        // Load usage stats
+        try {
+          const stats = await svc.getUsageStats(tenantId);
+          usageValue.textContent = `${stats.userCount} / ${stats.maxUsers} used`;
+          const pct = stats.maxUsers > 0 ? Math.min(100, Math.round((stats.userCount / stats.maxUsers) * 100)) : 0;
+          progressInner.style.width = `${pct}%`;
+
+          // Color the bar based on utilization
+          if (pct >= 90) {
+            progressInner.className = 'h-full bg-red-500 rounded-full';
+          } else if (pct >= 70) {
+            progressInner.className = 'h-full bg-amber-500 rounded-full';
+          } else {
+            progressInner.className = 'h-full bg-[var(--accent)] rounded-full';
+          }
+        } catch {
+          usageValue.textContent = '-- / -- used';
+        }
+
+        // Load users with service-side filters
+        const filters: { role?: TenantUserRole; status?: string } = {};
+        if (currentRole) filters.role = currentRole as TenantUserRole;
+        if (currentStatus) filters.status = currentStatus;
+
+        const users = await svc.listUsers(
+          tenantId,
+          filters as Parameters<typeof svc.listUsers>[1],
+        );
+
+        allUsers = users.map((u) => ({
+          id: u.id,
+          userId: u.userId,
+          role: u.role,
+          status: u.status,
+          invitedAt: u.invitedAt ?? '',
+          joinedAt: u.joinedAt ?? '',
+        }));
+
+        rebuildTable();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        showMsg(wrapper, `Failed to load users: ${message}`, true);
+      }
+    };
+
+    // Invite form
+    wrapper.appendChild(
+      buildInviteForm(tenantId, wrapper, () => loadData()),
+    );
+
+    // Filter bar
+    wrapper.appendChild(
+      buildFilterBar((role, status, search) => {
+        currentRole = role;
+        currentStatus = status;
+        currentSearch = search;
+        loadData();
+      }),
+    );
+
+    wrapper.appendChild(tableSlot);
     container.appendChild(wrapper);
+
+    // Initial load
+    loadData();
   },
 };

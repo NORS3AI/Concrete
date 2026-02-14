@@ -1,5 +1,6 @@
 export { changeOrderManifest } from './manifest';
 export { ChangeOrderService } from './change-order-service';
+export { getChangeOrderService } from './service-accessor';
 export type {
   CORequestSource, CORequestStatus, ChangeOrderRequest,
   COType, COStatus, ChangeOrder,

@@ -3,6 +3,8 @@
  * Filterable log of all change order activity by job, date range, action type.
  */
 
+import { getChangeOrderService } from '../service-accessor';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -16,6 +18,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(msg: string, type: 'success' | 'error' | 'info' = 'info'): void {
+  const colors: Record<string, string> = {
+    success: 'bg-emerald-600',
+    error: 'bg-red-600',
+    info: 'bg-blue-600',
+  };
+  const toast = el('div', `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-white text-sm shadow-lg ${colors[type]}`);
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 // ---------------------------------------------------------------------------
@@ -158,27 +172,147 @@ function buildTable(rows: LogRow[]): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
+// Filtering logic
+// ---------------------------------------------------------------------------
+
+function applyFilters(
+  allRows: LogRow[],
+  action: string,
+  search: string,
+  dateFrom: string,
+  dateTo: string,
+): LogRow[] {
+  let filtered = allRows;
+
+  if (action) {
+    filtered = filtered.filter((r) => r.action === action);
+  }
+
+  if (search) {
+    const lowerSearch = search.toLowerCase();
+    filtered = filtered.filter((r) =>
+      r.notes.toLowerCase().includes(lowerSearch) ||
+      r.performedBy.toLowerCase().includes(lowerSearch) ||
+      r.action.toLowerCase().includes(lowerSearch) ||
+      r.previousStatus.toLowerCase().includes(lowerSearch) ||
+      r.newStatus.toLowerCase().includes(lowerSearch),
+    );
+  }
+
+  if (dateFrom) {
+    filtered = filtered.filter((r) => r.date >= dateFrom);
+  }
+
+  if (dateTo) {
+    filtered = filtered.filter((r) => r.date <= dateTo);
+  }
+
+  return filtered;
+}
+
+// ---------------------------------------------------------------------------
+// Export CSV
+// ---------------------------------------------------------------------------
+
+function exportLogCsv(rows: LogRow[]): void {
+  const headers = ['Date', 'Action', 'Performed By', 'Previous Status', 'New Status', 'Notes'];
+  const csvRows = [headers.join(',')];
+
+  for (const row of rows) {
+    csvRows.push([
+      row.date,
+      row.action,
+      `"${(row.performedBy || '').replace(/"/g, '""')}"`,
+      row.previousStatus || '',
+      row.newStatus || '',
+      `"${(row.notes || '').replace(/"/g, '""')}"`,
+    ].join(','));
+  }
+
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `change-order-log-${new Date().toISOString().split('T')[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
-export default {
-  render(container: HTMLElement): void {
+async function loadAndRender(container: HTMLElement): Promise<void> {
+  const svc = getChangeOrderService();
+
+  // Show loading state
+  container.innerHTML = '';
+  const loadingEl = el('div', 'flex items-center justify-center py-12 text-[var(--text-muted)]', 'Loading change order log...');
+  container.appendChild(loadingEl);
+
+  try {
+    // Load all logs from the service
+    const logs = await svc.getAllLogs();
+
+    const allRows: LogRow[] = logs.map((log) => ({
+      id: log.id,
+      date: log.date ?? '-',
+      action: log.action,
+      performedBy: log.performedBy ?? '',
+      previousStatus: log.previousStatus ?? '',
+      newStatus: log.newStatus ?? '',
+      notes: log.notes ?? '',
+    }));
+
+    // Build the UI
     container.innerHTML = '';
     const wrapper = el('div', 'space-y-0');
 
     const headerRow = el('div', 'flex items-center justify-between mb-4');
     headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Change Order Log'));
+
     const exportBtn = el('button', 'px-4 py-2 rounded-md text-sm font-medium border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)]', 'Export');
     exportBtn.type = 'button';
-    exportBtn.addEventListener('click', () => { /* export placeholder */ });
     headerRow.appendChild(exportBtn);
     wrapper.appendChild(headerRow);
 
-    wrapper.appendChild(buildFilterBar((_action, _search, _dateFrom, _dateTo) => { /* filter placeholder */ }));
+    // Table container for replacing on filter
+    const tableContainer = el('div');
+    let currentFilteredRows = allRows;
 
-    const rows: LogRow[] = [];
-    wrapper.appendChild(buildTable(rows));
+    const rebuildTable = (rows: LogRow[]) => {
+      currentFilteredRows = rows;
+      tableContainer.innerHTML = '';
+      tableContainer.appendChild(buildTable(rows));
+    };
+
+    // Wire filter bar
+    wrapper.appendChild(buildFilterBar((action, search, dateFrom, dateTo) => {
+      const filtered = applyFilters(allRows, action, search, dateFrom, dateTo);
+      rebuildTable(filtered);
+    }));
+
+    // Wire export button
+    exportBtn.addEventListener('click', () => {
+      exportLogCsv(currentFilteredRows);
+      showMsg('Log exported successfully.', 'success');
+    });
+
+    // Initial table render
+    rebuildTable(allRows);
+    wrapper.appendChild(tableContainer);
 
     container.appendChild(wrapper);
+  } catch (err: unknown) {
+    container.innerHTML = '';
+    const message = err instanceof Error ? err.message : String(err);
+    const errorEl = el('div', 'flex items-center justify-center py-12 text-red-400', `Failed to load log: ${message}`);
+    container.appendChild(errorEl);
+  }
+}
+
+export default {
+  render(container: HTMLElement): void {
+    loadAndRender(container);
   },
 };

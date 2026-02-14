@@ -1,7 +1,10 @@
 /**
  * Earned Value Management (EVM) Dashboard view.
  * Displays CPI, SPI, EAC, ETC, VAC metrics with KPI cards and chart placeholders.
+ * Wired to ProjectService for data operations.
  */
+
+import { getProjectService } from '../service-accessor';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,6 +19,25 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) node.className = cls;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function showMsg(container: HTMLElement, text: string, isError: boolean): void {
+  const existing = container.querySelector('[data-msg]');
+  if (existing) existing.remove();
+  const cls = isError
+    ? 'p-3 mb-4 rounded-md text-sm bg-red-500/10 text-red-400 border border-red-500/20'
+    : 'p-3 mb-4 rounded-md text-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+  const msg = el('div', cls, text);
+  msg.setAttribute('data-msg', '1');
+  container.prepend(msg);
+  setTimeout(() => msg.remove(), 5000);
+}
+
+function parseProjectId(): string {
+  const hash = window.location.hash;
+  const parts = hash.replace(/^#\/?/, '').split('/');
+  if (parts.length >= 2 && parts[0] === 'project') return parts[1];
+  return '';
 }
 
 const fmtCurrency = (v: number): string =>
@@ -113,38 +135,85 @@ function buildChartPlaceholder(): HTMLElement {
 }
 
 // ---------------------------------------------------------------------------
+// Loading State
+// ---------------------------------------------------------------------------
+
+function buildLoadingState(): HTMLElement {
+  const loading = el('div', 'flex items-center justify-center py-12');
+  loading.appendChild(el('span', 'text-[var(--text-muted)] text-sm', 'Loading EVM data...'));
+  return loading;
+}
+
+// ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
 export default {
   render(container: HTMLElement): void {
     container.innerHTML = '';
+    const projectId = parseProjectId();
+
     const wrapper = el('div', 'space-y-0');
 
     const headerRow = el('div', 'flex items-center justify-between mb-4');
-    headerRow.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Earned Value Management'));
-    const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', 'Back to Project') as HTMLAnchorElement;
-    backLink.href = '#/project/list';
-    headerRow.appendChild(backLink);
+    const titleArea = el('div', 'flex items-center gap-3');
+    const backLink = el('a', 'text-sm text-[var(--text-muted)] hover:text-[var(--text)]', '\u2190 Back') as HTMLAnchorElement;
+    backLink.href = `#/project/${projectId}`;
+    titleArea.appendChild(backLink);
+    titleArea.appendChild(el('h1', 'text-2xl font-bold text-[var(--text)]', 'Earned Value Management'));
+    headerRow.appendChild(titleArea);
     wrapper.appendChild(headerRow);
 
-    // Default data when no project loaded
-    const data: EVMData = {
-      bcws: 0,
-      bcwp: 0,
-      acwp: 0,
-      cpi: 0,
-      spi: 0,
-      eac: 0,
-      etc: 0,
-      vac: 0,
-      budgetedCost: 0,
-    };
-
-    wrapper.appendChild(buildKPICards(data));
-    wrapper.appendChild(buildCostSummary(data));
-    wrapper.appendChild(buildChartPlaceholder());
+    // Content slot
+    const contentSlot = el('div');
+    contentSlot.appendChild(buildLoadingState());
+    wrapper.appendChild(contentSlot);
 
     container.appendChild(wrapper);
+
+    // Load data
+    const loadData = async () => {
+      try {
+        const svc = getProjectService();
+        const [evmResult, project] = await Promise.all([
+          svc.calculateEVM(projectId),
+          svc.getProject(projectId),
+        ]);
+
+        const data: EVMData = {
+          bcws: evmResult.bcws ?? 0,
+          bcwp: evmResult.bcwp ?? 0,
+          acwp: evmResult.acwp ?? 0,
+          cpi: evmResult.cpi ?? 0,
+          spi: evmResult.spi ?? 0,
+          eac: evmResult.eac ?? 0,
+          etc: evmResult.etc ?? 0,
+          vac: evmResult.vac ?? 0,
+          budgetedCost: project.budgetedCost ?? 0,
+        };
+
+        contentSlot.innerHTML = '';
+        contentSlot.appendChild(buildKPICards(data));
+        contentSlot.appendChild(buildCostSummary(data));
+        contentSlot.appendChild(buildChartPlaceholder());
+      } catch (err: unknown) {
+        contentSlot.innerHTML = '';
+        const message = err instanceof Error ? err.message : 'Failed to load EVM data';
+        showMsg(wrapper, message, true);
+
+        // Show empty state with zeros
+        const emptyData: EVMData = {
+          bcws: 0, bcwp: 0, acwp: 0,
+          cpi: 0, spi: 0, eac: 0,
+          etc: 0, vac: 0, budgetedCost: 0,
+        };
+        contentSlot.appendChild(buildKPICards(emptyData));
+        contentSlot.appendChild(buildCostSummary(emptyData));
+        contentSlot.appendChild(buildChartPlaceholder());
+      }
+    };
+
+    // Initial load
+    loadData();
   },
 };

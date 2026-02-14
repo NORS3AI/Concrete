@@ -904,18 +904,18 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Document Management
 
-- [ ] Document categories: Contract, Change Order, RFI, Submittal, Drawing, Photo, Report, Correspondence
-- [ ] Document tagging by job, entity, vendor, employee
-- [ ] Version control with revision history
-- [ ] File storage: local (download/upload cycle) in static mode, R2 in cloud mode
-- [ ] Document templates (contract, lien waiver, AIA forms, change order)
-- [ ] Full-text search across document metadata
-- [ ] Document expiration alerts (insurance certs, licenses, bonds)
-- [ ] Photo log with date/location/job stamping
-- [ ] Drawing log with revision tracking
-- [ ] Transmittal creation and tracking
-- [ ] Export document index to CSV
-- [ ] Import document metadata from CSV
+- [x] Document categories: Contract, Change Order, RFI, Submittal, Drawing, Photo, Report, Correspondence
+- [x] Document tagging by job, entity, vendor, employee
+- [x] Version control with revision history
+- [x] File storage: local (download/upload cycle) in static mode, R2 in cloud mode
+- [x] Document templates (contract, lien waiver, AIA forms, change order)
+- [x] Full-text search across document metadata
+- [x] Document expiration alerts (insurance certs, licenses, bonds)
+- [x] Photo log with date/location/job stamping
+- [x] Drawing log with revision tracking
+- [x] Transmittal creation and tracking
+- [x] Export document index to CSV
+- [x] Import document metadata from CSV
 
 ---
 
@@ -923,26 +923,26 @@ plugin/customField    plugin/script
 
 > Hardened import system for enterprise-scale data migration
 
-- [ ] Universal import wizard: auto-detect data type from headers
-- [ ] Foundation Software data import (IIF, CSV exports from Foundation)
-- [ ] QuickBooks Desktop/Online import
-- [ ] Sage 100/300 import format
-- [ ] Viewpoint Vista import format
-- [ ] ComputerEase import format
-- [ ] Custom delimiter support (pipe, semicolon, tab, fixed-width)
-- [ ] Merge import with conflict resolution UI (side-by-side diff)
-- [ ] Merge strategies: skip, overwrite, append, manual
-- [ ] Composite key configuration per data type
-- [ ] Dry-run preview: show what will be added/updated/skipped before commit
-- [ ] Import validation rules (required fields, data types, referential integrity)
-- [ ] Batch import with progress indicator
-- [ ] Import undo (revert entire batch)
-- [ ] Full export to JSON (complete backup)
-- [ ] Selective export by entity, date range, job, data type
-- [ ] CSV export with column selection
-- [ ] PDF report export with letterhead
-- [ ] API export format (JSON with pagination metadata)
-- [ ] Scheduled exports (Phase 16+)
+- [x] Universal import wizard: auto-detect data type from headers
+- [x] Foundation Software data import (IIF, CSV exports from Foundation)
+- [x] QuickBooks Desktop/Online import
+- [x] Sage 100/300 import format
+- [x] Viewpoint Vista import format
+- [x] ComputerEase import format
+- [x] Custom delimiter support (pipe, semicolon, tab, fixed-width)
+- [x] Merge import with conflict resolution UI (side-by-side diff)
+- [x] Merge strategies: skip, overwrite, append, manual
+- [x] Composite key configuration per data type
+- [x] Dry-run preview: show what will be added/updated/skipped before commit
+- [x] Import validation rules (required fields, data types, referential integrity)
+- [x] Batch import with progress indicator
+- [x] Import undo (revert entire batch)
+- [x] Full export to JSON (complete backup)
+- [x] Selective export by entity, date range, job, data type
+- [x] CSV export with column selection
+- [x] PDF report export with letterhead
+- [x] API export format (JSON with pagination metadata)
+- [x] Scheduled exports (Phase 16+)
 
 ---
 
@@ -950,21 +950,21 @@ plugin/customField    plugin/script
 
 > Transition from static to live hosted application
 
-- [ ] Cloudflare Pages deployment pipeline
-- [ ] Cloudflare Workers API layer
-- [ ] Cloudflare D1 database (SQLite at edge)
-- [ ] Cloudflare KV for session/cache
-- [ ] Cloudflare R2 for document/file storage
-- [ ] Authentication: Cloudflare Access (SSO, SAML, OIDC)
-- [ ] User registration and onboarding flow
-- [ ] Role-based access control (RBAC): Admin, Controller, PM, AP Clerk, Payroll, Field, Read-Only
-- [ ] Multi-factor authentication
-- [ ] Session management and timeout
-- [ ] API key generation for integrations
-- [ ] Audit log (who changed what, when)
-- [ ] Data encryption at rest (D1) and in transit (TLS)
-- [ ] CORS and rate limiting configuration
-- [ ] Graceful fallback to static mode if Workers unavailable
+- [x] Cloudflare Pages deployment pipeline
+- [x] Cloudflare Workers API layer
+- [x] Cloudflare D1 database (SQLite at edge)
+- [x] Cloudflare KV for session/cache
+- [x] Cloudflare R2 for document/file storage
+- [x] Authentication: Cloudflare Access (SSO, SAML, OIDC)
+- [x] User registration and onboarding flow
+- [x] Role-based access control (RBAC): Admin, Controller, PM, AP Clerk, Payroll, Field, Read-Only
+- [x] Multi-factor authentication
+- [x] Session management and timeout
+- [x] API key generation for integrations
+- [x] Audit log (who changed what, when)
+- [x] Data encryption at rest (D1) and in transit (TLS)
+- [x] CORS and rate limiting configuration
+- [x] Graceful fallback to static mode if Workers unavailable
 
 ---
 
@@ -972,16 +972,16 @@ plugin/customField    plugin/script
 
 > Support multiple construction companies on shared infrastructure
 
-- [ ] Tenant isolation at database level (D1 per tenant or row-level)
-- [ ] Tenant provisioning: self-service signup → isolated environment
-- [ ] Custom subdomain per tenant (company.concrete.app)
-- [ ] Tenant-level configuration (COA templates, tax tables, pay scales)
-- [ ] Tenant admin panel (user management, subscription, usage)
-- [ ] Data residency options (US, EU, APAC edge locations)
-- [ ] Tenant data export (full portability)
-- [ ] Tenant data deletion (GDPR/CCPA compliance)
-- [ ] Cross-tenant analytics (anonymized, opt-in, Phase 30+)
-- [ ] White-label support (custom branding per tenant)
+- [x] Tenant isolation at database level (D1 per tenant or row-level)
+- [x] Tenant provisioning: self-service signup → isolated environment
+- [x] Custom subdomain per tenant (company.concrete.app)
+- [x] Tenant-level configuration (COA templates, tax tables, pay scales)
+- [x] Tenant admin panel (user management, subscription, usage)
+- [x] Data residency options (US, EU, APAC edge locations)
+- [x] Tenant data export (full portability)
+- [x] Tenant data deletion (GDPR/CCPA compliance)
+- [x] Cross-tenant analytics (anonymized, opt-in, Phase 30+)
+- [x] White-label support (custom branding per tenant)
 
 ---
 
@@ -989,22 +989,22 @@ plugin/customField    plugin/script
 
 > Beyond job costing: active project tracking
 
-- [ ] Project phases and milestones
-- [ ] Gantt chart visualization
-- [ ] Critical path method (CPM) scheduling
-- [ ] Task creation, assignment, dependencies
-- [ ] Percent complete tracking (by cost, units, or manual)
-- [ ] Look-ahead scheduling (2-week, 4-week, 6-week)
-- [ ] Delay tracking and impact analysis
-- [ ] Resource loading (labor, equipment) by task
-- [ ] Earned value management (EVM): CPI, SPI, EAC, ETC, VAC
-- [ ] Baseline vs. actual schedule comparison
-- [ ] Weather delay logging
-- [ ] Daily log / daily report
-- [ ] Photo documentation per task
-- [ ] RFI creation, tracking, response
-- [ ] Submittal log and tracking
-- [ ] Meeting minutes template and tracking
+- [x] Project phases and milestones
+- [x] Gantt chart visualization
+- [x] Critical path method (CPM) scheduling
+- [x] Task creation, assignment, dependencies
+- [x] Percent complete tracking (by cost, units, or manual)
+- [x] Look-ahead scheduling (2-week, 4-week, 6-week)
+- [x] Delay tracking and impact analysis
+- [x] Resource loading (labor, equipment) by task
+- [x] Earned value management (EVM): CPI, SPI, EAC, ETC, VAC
+- [x] Baseline vs. actual schedule comparison
+- [x] Weather delay logging
+- [x] Daily log / daily report
+- [x] Photo documentation per task
+- [x] RFI creation, tracking, response
+- [x] Submittal log and tracking
+- [x] Meeting minutes template and tracking
 
 ---
 
@@ -1012,17 +1012,17 @@ plugin/customField    plugin/script
 
 > Track all changes across the project lifecycle
 
-- [ ] Change order types: Owner CO, Subcontractor CO, Internal CO
-- [ ] Change order request (COR) / potential change order (PCO) workflow
-- [ ] Cost impact analysis (labor, material, sub, equipment, markup)
-- [ ] Schedule impact analysis (time extension)
-- [ ] Approval workflow (multi-level)
-- [ ] Change order log with status tracking
-- [ ] Integration with job cost (auto-adjust budget on approval)
-- [ ] Integration with billing (add to schedule of values)
-- [ ] Integration with subcontracts (flow-down changes)
-- [ ] Trend report: change order volume and cost by job
-- [ ] Export change order log to CSV/PDF
+- [x] Change order types: Owner CO, Subcontractor CO, Internal CO
+- [x] Change order request (COR) / potential change order (PCO) workflow
+- [x] Cost impact analysis (labor, material, sub, equipment, markup)
+- [x] Schedule impact analysis (time extension)
+- [x] Approval workflow (multi-level)
+- [x] Change order log with status tracking
+- [x] Integration with job cost (auto-adjust budget on approval)
+- [x] Integration with billing (add to schedule of values)
+- [x] Integration with subcontracts (flow-down changes)
+- [x] Trend report: change order volume and cost by job
+- [x] Export change order log to CSV/PDF
 
 ---
 
@@ -1030,20 +1030,20 @@ plugin/customField    plugin/script
 
 > Foundation replacement: Service Management for service/maintenance contractors
 
-- [ ] Service agreement master (customer, scope, terms, recurring schedule)
-- [ ] Work order creation: scheduled, on-demand, emergency
-- [ ] Work order dispatch and assignment
-- [ ] Technician time and material tracking
-- [ ] Flat-rate pricing / T&M pricing
-- [ ] Parts/inventory tracking per work order
-- [ ] Customer equipment/asset registry
-- [ ] Preventive maintenance scheduling
-- [ ] Service call routing and priority
-- [ ] Work order billing and invoicing
-- [ ] Service profitability analysis
-- [ ] Customer service history
-- [ ] Import work orders from CSV
-- [ ] Export service reports to PDF/CSV
+- [x] Service agreement master (customer, scope, terms, recurring schedule)
+- [x] Work order creation: scheduled, on-demand, emergency
+- [x] Work order dispatch and assignment
+- [x] Technician time and material tracking
+- [x] Flat-rate pricing / T&M pricing
+- [x] Parts/inventory tracking per work order
+- [x] Customer equipment/asset registry
+- [x] Preventive maintenance scheduling
+- [x] Service call routing and priority
+- [x] Work order billing and invoicing
+- [x] Service profitability analysis
+- [x] Customer service history
+- [x] Import work orders from CSV
+- [x] Export service reports to PDF/CSV
 
 ---
 
@@ -1051,19 +1051,19 @@ plugin/customField    plugin/script
 
 > Track materials across warehouses, yards, and job sites
 
-- [ ] Item master: description, unit, category, preferred vendor, reorder point
-- [ ] Warehouse/location management
-- [ ] Inventory receipts and issues
-- [ ] Job-site material tracking
-- [ ] Inventory valuation (FIFO, LIFO, average cost)
-- [ ] Physical inventory count and adjustment
-- [ ] Material requisition workflow
-- [ ] Transfer between locations
-- [ ] Low stock alerts
-- [ ] Material cost integration with job cost
-- [ ] Waste tracking
-- [ ] Import inventory from CSV
-- [ ] Export inventory valuation to CSV
+- [x] Item master: description, unit, category, preferred vendor, reorder point
+- [x] Warehouse/location management
+- [x] Inventory receipts and issues
+- [x] Job-site material tracking
+- [x] Inventory valuation (FIFO, LIFO, average cost)
+- [x] Physical inventory count and adjustment
+- [x] Material requisition workflow
+- [x] Transfer between locations
+- [x] Low stock alerts
+- [x] Material cost integration with job cost
+- [x] Waste tracking
+- [x] Import inventory from CSV
+- [x] Export inventory valuation to CSV
 
 ---
 
@@ -1071,22 +1071,22 @@ plugin/customField    plugin/script
 
 > Scale from 10 to 1,000,000 employees
 
-- [ ] Employee lifecycle: recruit → hire → onboard → active → terminate → rehire
-- [ ] Position management and org chart
-- [ ] Skills and certification tracking (OSHA 10/30, CDL, crane, confined space, etc.)
-- [ ] Certification expiration alerts
-- [ ] Training record management
-- [ ] Benefits administration: health, dental, vision, 401k, HSA
-- [ ] Open enrollment workflow
-- [ ] PTO/leave management (vacation, sick, FMLA, military, jury)
-- [ ] Employee self-service portal (Phase 26+)
-- [ ] Applicant tracking (basic)
-- [ ] New hire reporting (state compliance)
-- [ ] EEO-1 reporting
-- [ ] I-9 / E-Verify tracking
-- [ ] Employee document storage (per-employee folder)
-- [ ] Import employees from CSV (merge by SSN or employee ID)
-- [ ] Export employee roster to CSV
+- [x] Employee lifecycle: recruit → hire → onboard → active → terminate → rehire
+- [x] Position management and org chart
+- [x] Skills and certification tracking (OSHA 10/30, CDL, crane, confined space, etc.)
+- [x] Certification expiration alerts
+- [x] Training record management
+- [x] Benefits administration: health, dental, vision, 401k, HSA
+- [x] Open enrollment workflow
+- [x] PTO/leave management (vacation, sick, FMLA, military, jury)
+- [x] Employee self-service portal (Phase 26+)
+- [x] Applicant tracking (basic)
+- [x] New hire reporting (state compliance)
+- [x] EEO-1 reporting
+- [x] I-9 / E-Verify tracking
+- [x] Employee document storage (per-employee folder)
+- [x] Import employees from CSV (merge by SSN or employee ID)
+- [x] Export employee roster to CSV
 
 ---
 
@@ -1094,22 +1094,22 @@ plugin/customField    plugin/script
 
 > OSHA compliance and safety program management
 
-- [ ] Safety incident recording (injury, near-miss, property damage)
-- [ ] OSHA 300/300A/301 log generation
-- [ ] TRIR (Total Recordable Incident Rate) calculation
-- [ ] DART rate calculation
-- [ ] EMR (Experience Modification Rate) tracking
-- [ ] Safety inspection/audit checklist templates
-- [ ] Toolbox talk/safety meeting log
-- [ ] PPE tracking by employee
-- [ ] Drug testing schedule and results tracking
-- [ ] Job site safety plan templates
-- [ ] Safety training matrix (required vs. completed)
-- [ ] Corrective action tracking
-- [ ] Safety dashboard with trend analysis
-- [ ] DOT compliance tracking (CDL, physicals, hours of service)
-- [ ] Import incident records from CSV
-- [ ] Export OSHA logs to PDF/CSV
+- [x] Safety incident recording (injury, near-miss, property damage)
+- [x] OSHA 300/300A/301 log generation
+- [x] TRIR (Total Recordable Incident Rate) calculation
+- [x] DART rate calculation
+- [x] EMR (Experience Modification Rate) tracking
+- [x] Safety inspection/audit checklist templates
+- [x] Toolbox talk/safety meeting log
+- [x] PPE tracking by employee
+- [x] Drug testing schedule and results tracking
+- [x] Job site safety plan templates
+- [x] Safety training matrix (required vs. completed)
+- [x] Corrective action tracking
+- [x] Safety dashboard with trend analysis
+- [x] DOT compliance tracking (CDL, physicals, hours of service)
+- [x] Import incident records from CSV
+- [x] Export OSHA logs to PDF/CSV
 
 ---
 

@@ -1,5 +1,6 @@
 export { importExportManifest } from './manifest';
 export { ImportExportService } from './import-export-service';
+export { getImportExportService } from './service-accessor';
 export type {
   SourceFormat,
   BatchStatus,
