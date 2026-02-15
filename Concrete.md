@@ -1255,21 +1255,21 @@ plugin/customField    plugin/script
 
 > Connect to the construction technology ecosystem
 
-- [ ] REST API with OpenAPI 3.0 specification
-- [ ] Webhook support (outbound event notifications)
-- [ ] Procore integration (projects, RFIs, submittals, daily logs)
-- [ ] PlanGrid / Autodesk Build integration
-- [ ] Bluebeam integration (document markup)
-- [ ] HCSS HeavyBid / HeavyJob integration
-- [ ] Raken daily reporting integration
-- [ ] Buildertrend integration
-- [ ] QuickBooks Online bidirectional sync
-- [ ] ADP / Paychex payroll export
-- [ ] Bank feed integrations (Plaid)
-- [ ] Zapier / Make connector for custom integrations
-- [ ] Email integration (forward invoices for AP processing)
-- [ ] Calendar integration (project milestones → Google/Outlook)
-- [ ] Flat file integration via SFTP drop folder
+- [x] REST API with OpenAPI 3.0 specification
+- [x] Webhook support (outbound event notifications)
+- [x] Procore integration (projects, RFIs, submittals, daily logs)
+- [x] PlanGrid / Autodesk Build integration
+- [x] Bluebeam integration (document markup)
+- [x] HCSS HeavyBid / HeavyJob integration
+- [x] Raken daily reporting integration
+- [x] Buildertrend integration
+- [x] QuickBooks Online bidirectional sync
+- [x] ADP / Paychex payroll export
+- [x] Bank feed integrations (Plaid)
+- [x] Zapier / Make connector for custom integrations
+- [x] Email integration (forward invoices for AP processing)
+- [x] Calendar integration (project milestones → Google/Outlook)
+- [x] Flat file integration via SFTP drop folder
 
 ---
 
