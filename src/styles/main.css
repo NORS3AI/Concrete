@@ -216,6 +216,77 @@
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
+/* Simulation Mode button */
+.sim-btn {
+  background: linear-gradient(135deg, #059669, #10b981, #34d399, #10b981, #059669);
+  background-size: 300% 300%;
+  animation: simGradient 3s ease infinite;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4), 0 0 24px rgba(16, 185, 129, 0.15);
+  transition: box-shadow 0.3s, transform 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.sim-btn::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -75%;
+  width: 50%;
+  height: 200%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transform: skewX(-20deg);
+  animation: simShine 3s ease-in-out infinite;
+}
+.sim-btn:hover {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.6), 0 0 40px rgba(16, 185, 129, 0.25);
+  transform: scale(1.03);
+}
+.sim-btn:active {
+  transform: scale(0.98);
+}
+.sim-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px #fff, 0 0 12px rgba(255,255,255,0.5);
+  animation: simPulse 1.5s ease-in-out infinite;
+}
+.sim-btn.sim-active {
+  background: linear-gradient(135deg, #b91c1c, #ef4444, #f87171, #ef4444, #b91c1c);
+  background-size: 300% 300%;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4), 0 0 24px rgba(239, 68, 68, 0.15);
+}
+.sim-btn.sim-active:hover {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.6), 0 0 40px rgba(239, 68, 68, 0.25);
+}
+.sim-btn.sim-loading {
+  pointer-events: none;
+  opacity: 0.8;
+}
+.sim-btn.sim-loading .sim-dot {
+  animation: simSpin 0.6s linear infinite;
+}
+@keyframes simGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes simShine {
+  0% { left: -75%; }
+  50% { left: 125%; }
+  100% { left: 125%; }
+}
+@keyframes simPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.7); }
+}
+@keyframes simSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Print styles */
 @media print {
   body {
