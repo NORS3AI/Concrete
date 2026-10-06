@@ -540,12 +540,25 @@ async function boot(): Promise<void> {
     // 15. Wire Simulation Mode button
     const simBtn = document.getElementById('sim-mode-btn');
     if (simBtn) {
-      let simActive = false;
+      let simActive = localStorage.getItem('concrete_sim_active') === '1';
       let simBusy = false;
       const setLabel = (text: string) => {
         const span = simBtn.querySelector('span:last-child');
         if (span) span.textContent = text;
       };
+      const showToast = (msg: string, color = 'bg-emerald-600') => {
+        const toast = document.createElement('div');
+        toast.className = `fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl ${color} text-white text-sm font-medium shadow-xl`;
+        toast.style.animation = 'scaleIn 200ms ease-out';
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+      };
+
+      if (simActive) {
+        simBtn.classList.add('sim-active');
+        setLabel('End Simulation');
+      }
 
       simBtn.addEventListener('click', async () => {
         if (simBusy) return;
@@ -561,16 +574,12 @@ async function boot(): Promise<void> {
             const { runSimulation } = await import('./core/simulation/generator');
             const result = await runSimulation(app);
             simActive = true;
+            localStorage.setItem('concrete_sim_active', '1');
             simBtn.classList.remove('sim-loading');
             simBtn.classList.add('sim-active');
             setLabel('End Simulation');
 
-            const toast = document.createElement('div');
-            toast.className = 'fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-xl';
-            toast.style.animation = 'scaleIn 200ms ease-out';
-            toast.textContent = `Simulation loaded: ${result.totalRecords.toLocaleString()} records across ${Object.keys(result.modules).length} categories`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 5000);
+            showToast(`Simulation loaded: ${result.totalRecords.toLocaleString()} records across ${Object.keys(result.modules).length} categories`);
 
             const hash = window.location.hash.slice(1) || '/dashboard';
             void router.navigate(hash);
@@ -578,6 +587,7 @@ async function boot(): Promise<void> {
             simBtn.classList.remove('sim-loading');
             setLabel('Start Simulation');
             logger.error('sim', 'Simulation failed', err);
+            showToast('Simulation failed. Check console for details.', 'bg-red-600');
           } finally {
             simBusy = false;
           }
@@ -592,8 +602,11 @@ async function boot(): Promise<void> {
             const { cleanupSimulation } = await import('./core/simulation/generator');
             await cleanupSimulation(app);
             simActive = false;
+            localStorage.removeItem('concrete_sim_active');
             simBtn.classList.remove('sim-loading', 'sim-active');
             setLabel('Start Simulation');
+
+            showToast('Simulation data removed.');
 
             const hash = window.location.hash.slice(1) || '/dashboard';
             void router.navigate(hash);
@@ -601,6 +614,7 @@ async function boot(): Promise<void> {
             logger.error('sim', 'Cleanup failed', err);
             simBtn.classList.remove('sim-loading');
             setLabel('End Simulation');
+            showToast('Cleanup failed. Check console for details.', 'bg-red-600');
           } finally {
             simBusy = false;
           }
