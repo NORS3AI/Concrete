@@ -541,40 +541,69 @@ async function boot(): Promise<void> {
     const simBtn = document.getElementById('sim-mode-btn');
     if (simBtn) {
       let simActive = false;
-      simBtn.addEventListener('click', () => {
-        if (simBtn.classList.contains('sim-loading')) return;
+      let simBusy = false;
+      const setLabel = (text: string) => {
+        const span = simBtn.querySelector('span:last-child');
+        if (span) span.textContent = text;
+      };
+
+      simBtn.addEventListener('click', async () => {
+        if (simBusy) return;
 
         if (!simActive) {
+          if (!confirm('Load simulation data? This will populate all modules with demo records. You can remove them by clicking "End Simulation".')) return;
+
+          simBusy = true;
           simBtn.classList.add('sim-loading');
-          simBtn.querySelector('span:last-child')!.textContent = 'Loading...';
+          setLabel('Loading...');
 
-          import('./core/simulation/generator').then(async ({ runSimulation }) => {
-            try {
-              const result = await runSimulation(app);
-              simActive = true;
-              simBtn.classList.remove('sim-loading');
-              simBtn.classList.add('sim-active');
-              simBtn.querySelector('span:last-child')!.textContent = 'End Simulation';
+          try {
+            const { runSimulation } = await import('./core/simulation/generator');
+            const result = await runSimulation(app);
+            simActive = true;
+            simBtn.classList.remove('sim-loading');
+            simBtn.classList.add('sim-active');
+            setLabel('End Simulation');
 
-              // Show success toast
-              const toast = document.createElement('div');
-              toast.className = 'fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-xl';
-              toast.style.animation = 'scaleIn 200ms ease-out';
-              toast.textContent = `Simulation loaded: ${result.totalRecords.toLocaleString()} records across ${Object.keys(result.modules).length} categories`;
-              document.body.appendChild(toast);
-              setTimeout(() => toast.remove(), 5000);
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-xl';
+            toast.style.animation = 'scaleIn 200ms ease-out';
+            toast.textContent = `Simulation loaded: ${result.totalRecords.toLocaleString()} records across ${Object.keys(result.modules).length} categories`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
 
-              // Re-render current view
-              const hash = window.location.hash.slice(1) || '/dashboard';
-              void router.navigate(hash);
-            } catch (err) {
-              simBtn.classList.remove('sim-loading');
-              simBtn.querySelector('span:last-child')!.textContent = 'Start Simulation';
-              logger.error('sim', 'Simulation failed', err);
-            }
-          });
+            const hash = window.location.hash.slice(1) || '/dashboard';
+            void router.navigate(hash);
+          } catch (err) {
+            simBtn.classList.remove('sim-loading');
+            setLabel('Start Simulation');
+            logger.error('sim', 'Simulation failed', err);
+          } finally {
+            simBusy = false;
+          }
         } else {
-          window.location.reload();
+          if (!confirm('End simulation and remove all demo data?')) return;
+
+          simBusy = true;
+          simBtn.classList.add('sim-loading');
+          setLabel('Cleaning up...');
+
+          try {
+            const { cleanupSimulation } = await import('./core/simulation/generator');
+            await cleanupSimulation(app);
+            simActive = false;
+            simBtn.classList.remove('sim-loading', 'sim-active');
+            setLabel('Start Simulation');
+
+            const hash = window.location.hash.slice(1) || '/dashboard';
+            void router.navigate(hash);
+          } catch (err) {
+            logger.error('sim', 'Cleanup failed', err);
+            simBtn.classList.remove('sim-loading');
+            setLabel('End Simulation');
+          } finally {
+            simBusy = false;
+          }
         }
       });
     }
