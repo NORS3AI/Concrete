@@ -1277,20 +1277,20 @@ plugin/customField    plugin/script
 
 > Multi-jurisdiction compliance at scale
 
-- [ ] Federal payroll tax filing: 941, 940, W-2, W-3
-- [ ] State payroll tax filing (all states)
-- [ ] Multi-state tax withholding (mobile workforce)
-- [ ] Reciprocity agreement handling
-- [ ] 1099 generation and e-filing
-- [ ] Sales and use tax tracking by jurisdiction
-- [ ] State contractor license tracking
-- [ ] OCIP/CCIP enrollment and reporting
-- [ ] EEO/AA compliance reporting
-- [ ] Prevailing wage compliance reporting by jurisdiction
-- [ ] State-specific certified payroll formats (beyond federal WH-347)
-- [ ] Audit trail for all tax-relevant transactions
-- [ ] Tax rate auto-update (via integration or import)
-- [ ] Year-end processing wizard
+- [x] Federal payroll tax filing: 941, 940, W-2, W-3
+- [x] State payroll tax filing (all states)
+- [x] Multi-state tax withholding (mobile workforce)
+- [x] Reciprocity agreement handling
+- [x] 1099 generation and e-filing
+- [x] Sales and use tax tracking by jurisdiction
+- [x] State contractor license tracking
+- [x] OCIP/CCIP enrollment and reporting
+- [x] EEO/AA compliance reporting
+- [x] Prevailing wage compliance reporting by jurisdiction
+- [x] State-specific certified payroll formats (beyond federal WH-347)
+- [x] Audit trail for all tax-relevant transactions
+- [x] Tax rate auto-update (via integration or import)
+- [x] Year-end processing wizard
 
 ---
 

@@ -153,12 +153,12 @@ async function boot(): Promise<void> {
       }
     }
 
-    // Default route: redirect `/` to the first module's root path
+    // Default route: redirect `/` to Dashboard
     router.register({
       path: '/',
       component: () => Promise.resolve(null),
       title: 'Home',
-      meta: { redirect: '/gl' },
+      meta: { redirect: '/dashboard' },
     });
 
     // 10. UI Shell
@@ -185,10 +185,8 @@ async function boot(): Promise<void> {
       shell,
     };
 
-    // Expose for debugging in dev
-    if (env.isDev) {
-      (window as unknown as Record<string, unknown>).concrete = app;
-    }
+    // Expose globally (needed for module service accessors and simulation)
+    (window as unknown as Record<string, unknown>).concrete = app;
 
     // Fire lifecycle events
     events.emit('app.boot', { app });
@@ -539,10 +537,81 @@ async function boot(): Promise<void> {
       }
     });
 
-    // 15. Start router (renders initial view)
+    // 15. Wire Simulation Mode button
+    const simBtn = document.getElementById('sim-mode-btn');
+    if (simBtn) {
+      let simActive = false;
+      let simBusy = false;
+      const setLabel = (text: string) => {
+        const span = simBtn.querySelector('span:last-child');
+        if (span) span.textContent = text;
+      };
+
+      simBtn.addEventListener('click', async () => {
+        if (simBusy) return;
+
+        if (!simActive) {
+          if (!confirm('Load simulation data? This will populate all modules with demo records. You can remove them by clicking "End Simulation".')) return;
+
+          simBusy = true;
+          simBtn.classList.add('sim-loading');
+          setLabel('Loading...');
+
+          try {
+            const { runSimulation } = await import('./core/simulation/generator');
+            const result = await runSimulation(app);
+            simActive = true;
+            simBtn.classList.remove('sim-loading');
+            simBtn.classList.add('sim-active');
+            setLabel('End Simulation');
+
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-xl';
+            toast.style.animation = 'scaleIn 200ms ease-out';
+            toast.textContent = `Simulation loaded: ${result.totalRecords.toLocaleString()} records across ${Object.keys(result.modules).length} categories`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+
+            const hash = window.location.hash.slice(1) || '/dashboard';
+            void router.navigate(hash);
+          } catch (err) {
+            simBtn.classList.remove('sim-loading');
+            setLabel('Start Simulation');
+            logger.error('sim', 'Simulation failed', err);
+          } finally {
+            simBusy = false;
+          }
+        } else {
+          if (!confirm('End simulation and remove all demo data?')) return;
+
+          simBusy = true;
+          simBtn.classList.add('sim-loading');
+          setLabel('Cleaning up...');
+
+          try {
+            const { cleanupSimulation } = await import('./core/simulation/generator');
+            await cleanupSimulation(app);
+            simActive = false;
+            simBtn.classList.remove('sim-loading', 'sim-active');
+            setLabel('Start Simulation');
+
+            const hash = window.location.hash.slice(1) || '/dashboard';
+            void router.navigate(hash);
+          } catch (err) {
+            logger.error('sim', 'Cleanup failed', err);
+            simBtn.classList.remove('sim-loading');
+            setLabel('End Simulation');
+          } finally {
+            simBusy = false;
+          }
+        }
+      });
+    }
+
+    // 16. Start router (renders initial view)
     router.start();
 
-    // 14. Boot complete
+    // 17. Boot complete
     events.emit('app.ready', { app });
     logger.info('app', 'Concrete ready');
   } catch (err) {

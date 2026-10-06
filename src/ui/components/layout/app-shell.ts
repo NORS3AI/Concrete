@@ -151,6 +151,13 @@ export class AppShell {
     searchBtn.innerHTML = `<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg><span class="flex-1 text-left">Search...</span><kbd class="px-1.5 py-0.5 bg-[var(--surface-raised)] rounded text-2xs border border-[var(--border)] flex-shrink-0">\u2318K</kbd>`;
     nav.appendChild(searchBtn);
 
+    // Simulation Mode button
+    const simBtn = document.createElement('button');
+    simBtn.id = 'sim-mode-btn';
+    simBtn.className = 'sim-btn flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold text-white flex-shrink-0 cursor-pointer border-0 outline-none';
+    simBtn.innerHTML = `<span class="sim-dot"></span><span>Start Simulation</span>`;
+    nav.appendChild(simBtn);
+
     // Global filters area
     const filters = document.createElement('div');
     filters.id = 'global-filters';
