@@ -47,7 +47,7 @@ const ALL_COLLECTIONS: string[] = [
   // Payroll
   'payroll/payRun', 'payroll/taxFiling',
   // Sub, PO, Safety, CO, Workflow, Integration
-  'sub/subcontractor', 'po/purchaseOrder', 'safety/incident', 'co/changeOrder', 'wf/request', 'integ/integration',
+  'sub/subcontract', 'po/purchaseOrder', 'safety/incident', 'co/changeOrder', 'wf/request', 'integ/integration',
   // Tax Compliance
   'tax/federalFiling', 'tax/stateFiling', 'tax/multiState', 'tax/reciprocity', 'tax/form1099',
   'tax/salesTax', 'tax/license', 'tax/ocipCcip', 'tax/eeoaa', 'tax/prevailingWage',
@@ -127,31 +127,37 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
   // =========================================================================
 
   const entities = ENTITY_NAMES.map((name, i) => ({
-    id: `ent-${i + 1}`, name, type: i === 0 ? 'holding' : i < 3 ? 'subsidiary' : 'division',
-    parentId: i === 0 ? null : 'ent-1', status: 'active', industry: 'Construction',
+    id: `ent-${i + 1}`, name, code: `ENT-${String(i + 1).padStart(3, '0')}`,
+    type: i === 0 ? 'holding' : i < 3 ? 'subsidiary' : 'division',
+    parentId: i === 0 ? null : 'ent-1', status: 'active',
+    currency: 'USD', fiscalYearEndMonth: 12, fiscalYearEndDay: 31,
+    depth: i === 0 ? 0 : 1, path: i === 0 ? '/ent-1' : `/ent-1/ent-${i + 1}`,
   }));
   await bulkInsert(store, 'entity/entity', entities);
   counts['Entities'] = entities.length;
 
   const jobs = JOB_NAMES.map((name, i) => ({
     id: `job-${i + 1}`, number: `${yr()}-${String(i + 1).padStart(3, '0')}`, name,
-    entityId: pick(entities).id, status: pick(['active','active','active','bidding','completed']),
-    type: pick(['lump-sum','time-material','cost-plus','unit-price']),
+    entityId: pick(entities).id, status: pick(['active','active','active','bidding','complete']),
+    type: pick(['lump_sum','time_material','cost_plus','unit_price']),
     contractAmount: randAmt(500000, 25000000), startDate: isoDate(randInt(30, 365)),
   }));
   await bulkInsert(store, 'job/job', jobs);
   counts['Jobs'] = jobs.length;
 
   const vendors = VENDOR_NAMES.map((name, i) => ({
-    id: `vendor-${i + 1}`, name, trade: pick(TRADES), status: 'active',
-    is1099: i < 5, paymentTerms: pick(['Net 30','Net 45','Net 60','2/10 Net 30']),
+    id: `vendor-${i + 1}`, name, vendorType: pick(TRADES), status: 'active',
+    is1099: i < 5, defaultTerms: pick(['Net 30','Net 45','Net 60','2/10 Net 30']),
+    insuranceRequired: true, bondRequired: i < 3,
+    ytdPayments: randAmt(50000, 800000), ytd1099Amount: i < 5 ? randAmt(20000, 400000) : 0,
   }));
   await bulkInsert(store, 'ap/vendor', vendors);
   counts['Vendors'] = vendors.length;
 
   const customers = CUSTOMER_NAMES.map((name, i) => ({
     id: `cust-${i + 1}`, name, entityId: pick(entities).id, status: 'active',
-    creditLimit: randAmt(100000, 5000000), paymentTerms: pick(['Net 30','Net 45','Net 60']),
+    creditLimit: randAmt(100000, 5000000), terms: pick(['Net 30','Net 45','Net 60']),
+    ytdBillings: randAmt(100000, 2000000), ytdPayments: randAmt(80000, 1800000),
   }));
   await bulkInsert(store, 'ar/customer', customers);
   counts['Customers'] = customers.length;
@@ -160,8 +166,10 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
   for (let i = 0; i < 40; i++) {
     employees.push({
       id: `emp-${i + 1}`, firstName: pick(EMPLOYEE_FIRST), lastName: pick(EMPLOYEE_LAST),
+      ssn: `***-**-${String(1000 + i).slice(1)}`,
       entityId: pick(entities).id, trade: pick(TRADES),
-      type: pick(['salary','hourly','hourly','hourly']), rate: randAmt(28, 85),
+      payType: pick(['salary','hourly','hourly','hourly']), payRate: randAmt(28, 85),
+      payFrequency: pick(['weekly','biweekly','semimonthly']),
       status: 'active', hireDate: isoDate(randInt(60, 1800)),
     });
   }
@@ -169,10 +177,10 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
   counts['Employees'] = employees.length;
 
   const equipment = EQUIP_NAMES.map((name, i) => ({
-    id: `equip-${i + 1}`, name, type: pick(EQUIP_TYPES), entityId: pick(entities).id,
-    status: pick(['available','in-use','in-use','in-use','maintenance']),
-    hourlyRate: randAmt(75, 350), purchaseCost: randAmt(80000, 1500000),
-    yearAcquired: 2019 + randInt(0, 5), hoursUsed: randInt(200, 8000),
+    id: `equip-${i + 1}`, equipmentNumber: `EQ-${String(i + 1).padStart(4, '0')}`,
+    description: name, category: pick(EQUIP_TYPES), entityId: pick(entities).id,
+    status: pick(['active','active','active','active','inactive']),
+    hourlyRate: randAmt(75, 350), purchasePrice: randAmt(80000, 1500000),
   }));
   await bulkInsert(store, 'equip/equipment', equipment);
   counts['Equipment'] = equipment.length;
@@ -204,11 +212,20 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
   const apInvoices: any[] = [];
   for (let i = 0; i < 30; i++) {
     const v = pick(vendors);
+    const apAmt = randAmt(2000, 150000);
+    const apTax = Math.round(apAmt * 0.08 * 100) / 100;
+    const apRetention = Math.round(apAmt * 0.1 * 100) / 100;
+    const apNet = Math.round((apAmt + apTax - apRetention) * 100) / 100;
+    const apStatus = pick(['pending','approved','paid','paid','paid']);
+    const apPaid = apStatus === 'paid' ? apNet : 0;
     apInvoices.push({
       id: rid(), vendorId: v.id, vendorName: v.name,
       invoiceNumber: `INV-${yr()}-${String(i + 1).padStart(4, '0')}`,
-      jobId: pick(jobs).id, amount: randAmt(2000, 150000),
-      status: pick(['pending','approved','paid','paid','paid']),
+      jobId: pick(jobs).id, amount: apAmt, taxAmount: apTax,
+      retentionAmount: apRetention, netAmount: apNet,
+      paidAmount: apPaid, balanceDue: Math.round((apNet - apPaid) * 100) / 100,
+      duplicateFlag: false,
+      status: apStatus,
       invoiceDate: isoDate(randInt(5, 90)), dueDate: isoDate(randInt(0, 30)),
       description: `${v.name} - ${pick(['Materials','Labor','Equipment rental','Subcontract work'])}`,
     });
@@ -223,11 +240,19 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
   const arInvoices: any[] = [];
   for (let i = 0; i < 20; i++) {
     const c = pick(customers);
+    const arAmt = randAmt(10000, 500000);
+    const arTax = Math.round(arAmt * 0.08 * 100) / 100;
+    const arRetainage = Math.round(arAmt * 0.1 * 100) / 100;
+    const arNet = Math.round((arAmt + arTax - arRetainage) * 100) / 100;
+    const arStatus = pick(['sent','paid','paid','overdue']);
+    const arPaid = arStatus === 'paid' ? arNet : 0;
     arInvoices.push({
       id: rid(), customerId: c.id, customerName: c.name,
       invoiceNumber: `AR-${yr()}-${String(i + 1).padStart(4, '0')}`,
-      jobId: pick(jobs).id, amount: randAmt(10000, 500000),
-      status: pick(['sent','paid','paid','overdue']),
+      jobId: pick(jobs).id, amount: arAmt, taxAmount: arTax,
+      retainageAmount: arRetainage, netAmount: arNet,
+      paidAmount: arPaid, balanceDue: Math.round((arNet - arPaid) * 100) / 100,
+      status: arStatus,
       invoiceDate: isoDate(randInt(5, 90)), dueDate: isoDate(randInt(0, 30)),
       description: `Progress billing - ${pick(JOB_NAMES)}`,
     });
@@ -242,10 +267,11 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
   const payRuns: any[] = [];
   for (let i = 0; i < 6; i++) {
     payRuns.push({
-      id: `pr-${i + 1}`, period: `Period ${i + 1}`, payDate: isoDate(i * 14),
+      id: `pr-${i + 1}`, payDate: isoDate(i * 14),
+      periodStart: isoDate(i * 14 + 14), periodEnd: isoDate(i * 14),
       status: i < 5 ? 'completed' : 'processing',
       totalGross: randAmt(80000, 250000), totalNet: randAmt(55000, 180000),
-      totalTax: randAmt(15000, 50000), totalDeductions: randAmt(5000, 20000),
+      totalTaxes: randAmt(15000, 50000), totalDeductions: randAmt(5000, 20000),
       employeeCount: employees.length,
     });
   }
@@ -275,7 +301,7 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
       insuranceExpiry: isoDate(-randInt(30, 365)), bondCapacity: randAmt(500000, 10000000),
     });
   }
-  await bulkInsert(store, 'sub/subcontractor', subs);
+  await bulkInsert(store, 'sub/subcontract', subs);
   counts['Subcontractors'] = subs.length;
 
   // =========================================================================
@@ -303,10 +329,11 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
   const incidents: any[] = [];
   for (let i = 0; i < 8; i++) {
     incidents.push({
-      id: rid(), jobId: pick(jobs).id, jobName: pick(JOB_NAMES),
-      date: isoDate(randInt(5, 180)), type: pick(['near-miss','first-aid','recordable','lost-time']),
+      id: rid(), incidentNumber: `INC-${yr()}-${String(i + 1).padStart(3, '0')}`,
+      jobId: pick(jobs).id, jobName: pick(JOB_NAMES),
+      date: isoDate(randInt(5, 180)), type: pick(['injury','near_miss','property_damage','illness']),
       severity: pick(['low','medium','high']), description: `Safety incident at ${pick(JOB_NAMES)}`,
-      employeeId: pick(employees).id, status: pick(['open','investigating','closed']),
+      employeeId: pick(employees).id, status: pick(['reported','investigating','closed']),
     });
   }
   await bulkInsert(store, 'safety/incident', incidents);
@@ -319,10 +346,14 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
   const cos: any[] = [];
   for (let i = 0; i < 10; i++) {
     const job = pick(jobs);
+    const coAmt = randAmt(5000, 500000);
     cos.push({
-      id: rid(), coNumber: `CO-${String(i + 1).padStart(3, '0')}`,
-      jobId: job.id, jobName: job.name, description: `Change order for ${job.name}`,
-      amount: randAmt(5000, 500000), status: pick(['pending','approved','rejected','executed']),
+      id: rid(), number: `CO-${String(i + 1).padStart(3, '0')}`,
+      jobId: job.id, jobName: job.name, title: `Change order for ${job.name}`,
+      type: pick(['owner_directed','field_directive','value_engineering','scope_change']),
+      amount: coAmt, approvedAmount: coAmt * (Math.random() > 0.3 ? 1 : 0),
+      scheduleExtensionDays: randInt(0, 30),
+      status: pick(['pending_approval','approved','rejected','executed']),
       requestDate: isoDate(randInt(10, 90)),
     });
   }
@@ -788,10 +819,10 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
   counts['Bonds'] = bonds.length;
 
   const policies = [
-    { id: rid(), policyNumber: 'GL-2026-001', type: 'general_liability', status: 'active', carrier: 'Hartford', effectiveDate: `${yr()}-01-01`, expirationDate: `${yr()}-12-31`, premiumAmount: 85000, coverageLimit: 2000000, deductible: 10000, description: 'Commercial General Liability' },
-    { id: rid(), policyNumber: 'WC-2026-001', type: 'workers_comp', status: 'active', carrier: 'Travelers', effectiveDate: `${yr()}-01-01`, expirationDate: `${yr()}-12-31`, premiumAmount: 120000, coverageLimit: 1000000, deductible: 5000, description: 'Workers Compensation' },
-    { id: rid(), policyNumber: 'AUTO-2026-001', type: 'auto', status: 'active', carrier: 'Liberty Mutual', effectiveDate: `${yr()}-01-01`, expirationDate: `${yr()}-12-31`, premiumAmount: 45000, coverageLimit: 1000000, deductible: 2500, description: 'Commercial Auto' },
-    { id: rid(), policyNumber: 'UMB-2026-001', type: 'umbrella', status: 'active', carrier: 'Zurich', effectiveDate: `${yr()}-01-01`, expirationDate: `${yr()}-12-31`, premiumAmount: 25000, coverageLimit: 10000000, deductible: 0, description: 'Umbrella / Excess Liability' },
+    { id: rid(), policyNumber: `GL-${yr()}-001`, type: 'general_liability', status: 'active', carrier: 'Hartford', effectiveDate: `${yr()}-01-01`, expirationDate: `${yr()}-12-31`, premiumAmount: 85000, coverageLimit: 2000000, deductible: 10000, description: 'Commercial General Liability' },
+    { id: rid(), policyNumber: `WC-${yr()}-001`, type: 'workers_comp', status: 'active', carrier: 'Travelers', effectiveDate: `${yr()}-01-01`, expirationDate: `${yr()}-12-31`, premiumAmount: 120000, coverageLimit: 1000000, deductible: 5000, description: 'Workers Compensation' },
+    { id: rid(), policyNumber: `AUTO-${yr()}-001`, type: 'auto', status: 'active', carrier: 'Liberty Mutual', effectiveDate: `${yr()}-01-01`, expirationDate: `${yr()}-12-31`, premiumAmount: 45000, coverageLimit: 1000000, deductible: 2500, description: 'Commercial Auto' },
+    { id: rid(), policyNumber: `UMB-${yr()}-001`, type: 'umbrella', status: 'active', carrier: 'Zurich', effectiveDate: `${yr()}-01-01`, expirationDate: `${yr()}-12-31`, premiumAmount: 25000, coverageLimit: 10000000, deductible: 0, description: 'Umbrella / Excess Liability' },
   ];
   await bulkInsert(store, 'bond/policy', policies);
   counts['Insurance Policies'] = policies.length;
@@ -1852,13 +1883,38 @@ export async function runSimulation(app: any): Promise<{ totalRecords: number; m
   await bulkInsert(store, 'analytics/scenario', scenarios);
   counts['Scenarios'] = scenarios.length;
 
-  const benchmarks: any[] = [
-    { metricName: 'Gross Profit Margin', category: 'financial', companyValue: 0.22, industryAvg: 0.18, industryMedian: 0.17, percentileRank: 72, period: `${yr()}`, sampleSize: 450 },
-    { metricName: 'Current Ratio', category: 'financial', companyValue: 1.45, industryAvg: 1.3, industryMedian: 1.25, percentileRank: 65, period: `${yr()}`, sampleSize: 450 },
-    { metricName: 'Backlog to Revenue', category: 'job_cost', companyValue: 1.8, industryAvg: 1.5, industryMedian: 1.4, percentileRank: 78, period: `${yr()}`, sampleSize: 320 },
-    { metricName: 'Employee Turnover', category: 'hr', companyValue: 0.18, industryAvg: 0.25, industryMedian: 0.22, percentileRank: 80, period: `${yr()}`, sampleSize: 380 },
-    { metricName: 'Safety Incident Rate', category: 'safety', companyValue: 2.1, industryAvg: 3.5, industryMedian: 3.0, percentileRank: 85, period: `${yr()}`, sampleSize: 410 },
-  ].map(b => ({ id: rid(), ...b }));
+  // Build period labels that match what the DashboardService generates
+  const nowDate = new Date();
+  const ytdStart = `${nowDate.getFullYear()}-01-01`;
+  const ytdEnd = nowDate.toISOString().split('T')[0];
+  const ytdLabel = `YTD (${ytdStart} - ${ytdEnd})`;
+  const prevYr = nowDate.getFullYear() - 1;
+  const prevYtdStart = `${prevYr}-01-01`;
+  const prevYtdEnd = `${prevYr}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;
+  const prevYtdLabel = `YTD (${prevYtdStart} - ${prevYtdEnd})`;
+
+  // KPI benchmark records that the Executive Dashboard reads
+  const kpiBenchmarks: { kpiCode: string; value: number; target?: number; prevValue: number }[] = [
+    { kpiCode: 'revenue_ytd', value: randAmt(12000000, 28000000), target: 25000000, prevValue: randAmt(10000000, 22000000) },
+    { kpiCode: 'gross_profit_pct', value: randAmt(18, 28), target: 22, prevValue: randAmt(16, 24) },
+    { kpiCode: 'backlog', value: randAmt(15000000, 45000000), target: 30000000, prevValue: randAmt(12000000, 38000000) },
+    { kpiCode: 'wip_total', value: randAmt(2000000, 8000000), prevValue: randAmt(1500000, 6000000) },
+    { kpiCode: 'cash_position', value: randAmt(800000, 3500000), target: 1500000, prevValue: randAmt(600000, 2800000) },
+    { kpiCode: 'ar_aging_total', value: randAmt(1200000, 4500000), prevValue: randAmt(1000000, 3800000) },
+    { kpiCode: 'ap_aging_total', value: randAmt(900000, 3200000), prevValue: randAmt(800000, 2900000) },
+    { kpiCode: 'equipment_utilization', value: randAmt(55, 85), target: 75, prevValue: randAmt(50, 80) },
+    { kpiCode: 'payroll_burden_rate', value: randAmt(32, 48), target: 40, prevValue: randAmt(30, 45) },
+    { kpiCode: 'safety_emr', value: randAmt(0.7, 1.1), target: 1.0, prevValue: randAmt(0.75, 1.15) },
+    { kpiCode: 'bonding_utilized_pct', value: randAmt(45, 80), target: 70, prevValue: randAmt(40, 75) },
+    { kpiCode: 'overbilling_total', value: randAmt(200000, 1200000), prevValue: randAmt(180000, 1000000) },
+    { kpiCode: 'underbilling_total', value: randAmt(150000, 900000), prevValue: randAmt(120000, 800000) },
+  ];
+
+  const benchmarks: any[] = [];
+  for (const kpi of kpiBenchmarks) {
+    benchmarks.push({ id: rid(), kpiCode: kpi.kpiCode, period: ytdLabel, value: kpi.value, target: kpi.target });
+    benchmarks.push({ id: rid(), kpiCode: kpi.kpiCode, period: prevYtdLabel, value: kpi.prevValue, target: kpi.target });
+  }
   await bulkInsert(store, 'analytics/benchmark', benchmarks);
   counts['Benchmarks'] = benchmarks.length;
 
