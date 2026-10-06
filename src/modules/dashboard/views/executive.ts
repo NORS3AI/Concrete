@@ -148,15 +148,61 @@ function buildQuickLinks(): HTMLElement {
 // Content Builder
 // ---------------------------------------------------------------------------
 
+function buildSimulationBanner(): HTMLElement {
+  const isSimActive = localStorage.getItem('concrete_sim_active') === '1';
+  if (isSimActive) return el('div');
+
+  const banner = el('div', 'relative overflow-hidden rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-900/40 via-emerald-800/20 to-slate-900/60 p-8 mb-8');
+
+  const glow = el('div', 'absolute -top-24 -right-24 w-64 h-64 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none');
+  banner.appendChild(glow);
+  const glow2 = el('div', 'absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-emerald-500/5 blur-2xl pointer-events-none');
+  banner.appendChild(glow2);
+
+  const inner = el('div', 'relative z-10 flex flex-col md:flex-row items-center gap-6');
+
+  const icon = el('div', 'flex-shrink-0 w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center');
+  icon.innerHTML = '<svg class="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605"/></svg>';
+  inner.appendChild(icon);
+
+  const textCol = el('div', 'flex-1 text-center md:text-left');
+  textCol.appendChild(el('h3', 'text-xl font-bold text-white mb-1', 'Try Simulation Mode'));
+  textCol.appendChild(el('p', 'text-sm text-emerald-200/70 max-w-lg', 'Load 2,000+ realistic construction finance records across all modules. Explore dashboards, reports, AP/AR, payroll, jobs, and more with demo data you can remove anytime.'));
+  inner.appendChild(textCol);
+
+  const btnWrap = el('div', 'flex-shrink-0');
+  const btn = el('button', 'sim-btn flex items-center gap-3 px-6 py-3 rounded-full text-base font-bold text-white cursor-pointer border-0 outline-none');
+  btn.innerHTML = '<span class="sim-dot"></span><span>Start Simulation</span>';
+  btn.addEventListener('click', () => {
+    const navBtn = document.getElementById('sim-mode-btn');
+    if (navBtn) navBtn.click();
+  });
+  btnWrap.appendChild(btn);
+  inner.appendChild(btnWrap);
+
+  banner.appendChild(inner);
+  return banner;
+}
+
 function buildContent(state: ExecutiveState): HTMLElement {
   const content = el('div', 'space-y-0');
+
+  content.appendChild(buildSimulationBanner());
+
+  const allZero = state.executiveKPIs.every(k => k.value === 0) && state.operationalKPIs.every(k => k.value === 0);
 
   if (state.executiveKPIs.length === 0 && state.operationalKPIs.length === 0) {
     content.appendChild(
       buildEmptyState(
-        'No KPI data available yet. Record benchmark data or connect live data sources to populate the executive dashboard.',
+        'No KPI data available yet. Start Simulation Mode above to explore with demo data, or connect live data sources.',
         'Configure Dashboard',
         () => { window.location.hash = '#/dashboard/configure'; },
+      ),
+    );
+  } else if (allZero) {
+    content.appendChild(
+      buildEmptyState(
+        'All metrics are at $0. Click "Start Simulation" above to load demo data and explore the platform.',
       ),
     );
   } else {
