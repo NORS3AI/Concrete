@@ -4,11 +4,87 @@
  * Enhanced with dropdown navigation menu and smart search bar.
  */
 
+// ---------------------------------------------------------------------------
+// Patch Notes Data — grouped by day
+// ---------------------------------------------------------------------------
+
+interface PatchEntry {
+  tag: 'feat' | 'fix' | 'perf' | 'ui';
+  text: string;
+}
+
+interface PatchDay {
+  date: string;
+  title: string;
+  entries: PatchEntry[];
+}
+
+const PATCH_NOTES: PatchDay[] = [
+  {
+    date: '2026-10-06',
+    title: 'Simulation Mode & Dashboard Overhaul',
+    entries: [
+      { tag: 'feat', text: 'Simulation Mode — load 2,000+ demo records across all modules with one click' },
+      { tag: 'feat', text: 'Simulation banner on Executive Dashboard with "Try Simulation Mode" CTA' },
+      { tag: 'feat', text: 'Targeted cleanup removes only simulation data, preserving real records' },
+      { tag: 'fix', text: 'Dashboard KPIs now populate with simulation benchmark data (was showing $0)' },
+      { tag: 'fix', text: 'Fixed 15+ enum/field mismatches across Entity, Job, Vendor, Equipment, Safety, and Change Order modules' },
+      { tag: 'ui', text: 'Simulation state persists across page refresh' },
+      { tag: 'ui', text: 'Error and success toasts for simulation start/stop' },
+      { tag: 'feat', text: 'Patch Notes panel (this panel!)' },
+    ],
+  },
+  {
+    date: '2026-10-05',
+    title: 'Navigation & Search',
+    entries: [
+      { tag: 'feat', text: 'Dropdown mega-menu for all modules organized by category' },
+      { tag: 'feat', text: 'Smart search bar with Cmd+K shortcut — searches modules, views, and actions' },
+      { tag: 'ui', text: 'App now lands on Dashboard instead of General Ledger' },
+      { tag: 'feat', text: 'Shiny animated green Start Simulation button in nav bar' },
+    ],
+  },
+  {
+    date: '2026-10-04',
+    title: 'Tax & Regulatory Compliance',
+    entries: [
+      { tag: 'feat', text: 'Phase 32 — Tax & Regulatory Compliance module with 14 collections' },
+      { tag: 'feat', text: '13 views: Federal/State filing, Multi-state, 1099, Sales tax, Licensing, and more' },
+      { tag: 'feat', text: 'Service layer with full CRUD, search, and KPI computation' },
+    ],
+  },
+  {
+    date: '2026-10-03',
+    title: 'Integration Hub',
+    entries: [
+      { tag: 'feat', text: 'Phase 31 — Integration Hub module for third-party connections' },
+      { tag: 'feat', text: 'ADP, QuickBooks, Procore, Sage connectors with sync status tracking' },
+      { tag: 'feat', text: 'Field mapping configuration and import/export batch management' },
+    ],
+  },
+  {
+    date: '2026-10-01',
+    title: 'Platform Foundation',
+    entries: [
+      { tag: 'feat', text: 'Phases 1–30: GL, AP, AR, Payroll, Jobs, Equipment, Safety, Change Orders, Workflow, Banking, Bonding, Project Mgmt, HR, Intercompany, Union, Service Mgmt, Inventory, Document Mgmt, Estimating, Analytics, Mobile, and Import/Export modules' },
+      { tag: 'feat', text: 'Typed Collection<T> data layer with schema validation, soft-delete, versioning' },
+      { tag: 'feat', text: 'Event-driven architecture with EventBus for real-time updates' },
+      { tag: 'perf', text: 'IndexedDB persistence via idb adapter with in-memory fallback' },
+      { tag: 'ui', text: 'Dark theme with CSS custom properties, responsive layout' },
+    ],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// AppShell
+// ---------------------------------------------------------------------------
+
 export class AppShell {
   private rootEl: HTMLElement | null = null;
   private topNav: HTMLElement | null = null;
   private contentArea: HTMLElement | null = null;
   private alertsPanel: HTMLElement | null = null;
+  private patchPanel: HTMLElement | null = null;
   private modalLayer: HTMLElement | null = null;
   private megaMenu: HTMLElement | null = null;
   private searchOverlay: HTMLElement | null = null;
@@ -40,6 +116,10 @@ export class AppShell {
     this.alertsPanel = this.createAlertsPanel();
     root.appendChild(this.alertsPanel);
 
+    // Patch notes slide panel (hidden by default)
+    this.patchPanel = this.createPatchNotesPanel();
+    root.appendChild(this.patchPanel);
+
     // Modal overlay layer
     this.modalLayer = document.createElement('div');
     this.modalLayer.id = 'modal-layer';
@@ -54,6 +134,23 @@ export class AppShell {
     const closeAlertsBtn = this.alertsPanel.querySelector('#close-alerts');
     if (closeAlertsBtn) {
       closeAlertsBtn.addEventListener('click', () => this.toggleAlerts(false));
+    }
+
+    // Hide patch unread dot if user has seen latest
+    const lastSeen = localStorage.getItem('concrete_patch_seen');
+    if (lastSeen && PATCH_NOTES[0] && lastSeen >= PATCH_NOTES[0].date) {
+      const dot = this.topNav.querySelector('#patch-unread-dot') as HTMLElement;
+      if (dot) dot.style.display = 'none';
+    }
+
+    // Wire up patch notes toggle
+    const patchBtn = this.topNav.querySelector('#patch-notes-btn');
+    if (patchBtn) {
+      patchBtn.addEventListener('click', () => this.togglePatchNotes());
+    }
+    const closePatchBtn = this.patchPanel?.querySelector('#close-patch-notes');
+    if (closePatchBtn) {
+      closePatchBtn.addEventListener('click', () => this.togglePatchNotes(false));
     }
 
     // Wire up mega menu toggle
@@ -89,6 +186,7 @@ export class AppShell {
       if (e.key === 'Escape') {
         this.closeSearch();
         this.toggleMegaMenu(false);
+        this.togglePatchNotes(false);
       }
     });
   }
@@ -164,6 +262,18 @@ export class AppShell {
     filters.className = 'flex items-center gap-2 flex-shrink-0';
     nav.appendChild(filters);
 
+    // Patch Notes button
+    const patchBtn = document.createElement('button');
+    patchBtn.id = 'patch-notes-btn';
+    patchBtn.className = 'btn-ghost relative p-2 rounded-md';
+    patchBtn.setAttribute('aria-label', 'Patch Notes');
+    patchBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>`;
+    const patchDot = document.createElement('span');
+    patchDot.className = 'absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full';
+    patchDot.id = 'patch-unread-dot';
+    patchBtn.appendChild(patchDot);
+    nav.appendChild(patchBtn);
+
     // Alerts button
     const alertsBtn = document.createElement('button');
     alertsBtn.id = 'alerts-btn';
@@ -196,6 +306,90 @@ export class AppShell {
     return panel;
   }
 
+  private createPatchNotesPanel(): HTMLElement {
+    const panel = document.createElement('div');
+    panel.id = 'patch-notes-panel';
+    panel.className =
+      'fixed right-0 top-14 bottom-0 w-96 bg-[var(--surface-raised)] border-l border-[var(--border)] transform translate-x-full transition-transform z-30 overflow-y-auto';
+
+    const header = document.createElement('div');
+    header.className = 'flex items-center justify-between p-4 border-b border-[var(--border)]';
+    header.innerHTML =
+      '<h2 class="font-semibold text-[var(--text)]">Patch Notes</h2><button class="btn-ghost p-1 rounded text-[var(--text-muted)] hover:text-[var(--text)]" id="close-patch-notes">&times;</button>';
+    panel.appendChild(header);
+
+    const content = document.createElement('div');
+    content.className = 'p-4 space-y-6';
+
+    const tagColors: Record<string, string> = {
+      feat: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      fix: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      perf: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+      ui: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    };
+    const tagLabels: Record<string, string> = {
+      feat: 'NEW', fix: 'FIX', perf: 'PERF', ui: 'UI',
+    };
+
+    for (const day of PATCH_NOTES) {
+      const group = document.createElement('div');
+
+      const dateHeader = document.createElement('div');
+      dateHeader.className = 'flex items-center gap-3 mb-3';
+      const dateBadge = document.createElement('span');
+      dateBadge.className = 'text-xs font-mono px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)]';
+      dateBadge.textContent = day.date;
+      dateHeader.appendChild(dateBadge);
+      const dateTitle = document.createElement('span');
+      dateTitle.className = 'text-sm font-semibold text-[var(--text)]';
+      dateTitle.textContent = day.title;
+      dateHeader.appendChild(dateTitle);
+      group.appendChild(dateHeader);
+
+      const list = document.createElement('div');
+      list.className = 'space-y-2 pl-1';
+
+      for (const entry of day.entries) {
+        const row = document.createElement('div');
+        row.className = 'flex items-start gap-2';
+
+        const tag = document.createElement('span');
+        tag.className = `flex-shrink-0 text-2xs font-bold px-1.5 py-0.5 rounded border ${tagColors[entry.tag] || tagColors.feat}`;
+        tag.textContent = tagLabels[entry.tag] || entry.tag.toUpperCase();
+        row.appendChild(tag);
+
+        const text = document.createElement('span');
+        text.className = 'text-sm text-[var(--text-muted)] leading-snug';
+        text.textContent = entry.text;
+        row.appendChild(text);
+
+        list.appendChild(row);
+      }
+
+      group.appendChild(list);
+      content.appendChild(group);
+    }
+
+    panel.appendChild(content);
+    return panel;
+  }
+
+  /** Toggle patch notes panel */
+  togglePatchNotes(show?: boolean): void {
+    if (!this.patchPanel) return;
+    const isHidden = this.patchPanel.classList.contains('translate-x-full');
+    const shouldShow = show ?? isHidden;
+    this.patchPanel.classList.toggle('translate-x-full', !shouldShow);
+    this.patchPanel.classList.toggle('translate-x-0', shouldShow);
+
+    if (shouldShow) {
+      this.toggleAlerts(false);
+      const dot = document.getElementById('patch-unread-dot');
+      if (dot) dot.style.display = 'none';
+      localStorage.setItem('concrete_patch_seen', PATCH_NOTES[0]?.date || '');
+    }
+  }
+
   /** Toggle alerts panel */
   toggleAlerts(show?: boolean): void {
     if (!this.alertsPanel) return;
@@ -203,6 +397,7 @@ export class AppShell {
     const shouldShow = show ?? isHidden;
     this.alertsPanel.classList.toggle('translate-x-full', !shouldShow);
     this.alertsPanel.classList.toggle('translate-x-0', shouldShow);
+    if (shouldShow) this.togglePatchNotes(false);
   }
 
   /** Toggle mega menu dropdown */
